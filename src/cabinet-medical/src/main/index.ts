@@ -4,12 +4,18 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Database from 'better-sqlite3'
 
 let db: Database.Database | null = null
+const stmtCache = new Map<string, Database.Statement>()
 
 function openDatabase(): void {
   const dbPath = is.dev
     ? join(app.getAppPath(), 'data/patients.sqlite')
     : join(process.resourcesPath, 'data/patients.sqlite')
   db = new Database(dbPath, { readonly: true })
+}
+
+function getStmt(sql: string): Database.Statement {
+  if (!stmtCache.has(sql)) stmtCache.set(sql, db!.prepare(sql))
+  return stmtCache.get(sql)!
 }
 
 function createWindow(): void {
@@ -58,24 +64,22 @@ app.whenReady().then(() => {
     'patients:search',
     (_event, query: string, field: 'nom' | 'prenom' | 'code') => {
       if (!db || !query || query.trim().length === 0) return []
-      const q = `%${query.trim()}%`
       const col =
         field === 'nom' ? 'nom' : field === 'prenom' ? 'prenom' : 'numero_dossier'
-      const stmt = db.prepare(`
+      const sql = `
         SELECT compteur, nom, prenom, numero_dossier, date_naissance, ville, tel_domicile
         FROM patients
         WHERE ${col} LIKE ?
         ORDER BY nom, prenom
         LIMIT 60
-      `)
-      return stmt.all(q)
+      `
+      return getStmt(sql).all(`%${query.trim()}%`)
     }
   )
 
   ipcMain.handle('patients:get', (_event, compteur: number) => {
     if (!db) return null
-    const stmt = db.prepare('SELECT * FROM patients WHERE compteur = ?')
-    return stmt.get(compteur) ?? null
+    return getStmt('SELECT * FROM patients WHERE compteur = ?').get(compteur) ?? null
   })
 
   createWindow()
