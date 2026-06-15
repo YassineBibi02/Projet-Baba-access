@@ -1,0 +1,132 @@
+import "./App.css";
+
+type MenuItem = {
+  label: string;
+  view: string;
+  enabled: boolean;
+};
+
+const menuItems: MenuItem[] = [
+  {
+    label: "Saisie nouveau patient",
+    view: "nouveau-patient",
+    enabled: true,
+  },
+  {
+    label: "Annuaires",
+    view: "annuaires",
+    enabled: false,
+  },
+  {
+    label: "Fichier patients",
+    view: "fichier-patients",
+    enabled: true,
+  },
+  {
+    label: "Bibliographie",
+    view: "bibliographie",
+    enabled: false,
+  },
+  {
+    label: "Recherche patient",
+    view: "recherche-patient",
+    enabled: true,
+  },
+  {
+    label: "Stock médicaments",
+    view: "stock-medicaments",
+    enabled: false,
+  },
+  {
+    label: "Rendez-vous",
+    view: "rendez-vous",
+    enabled: false,
+  },
+  {
+    label: "Gestion",
+    view: "gestion",
+    enabled: false,
+  },
+  {
+    label: "Mémento",
+    view: "memento",
+    enabled: false,
+  },
+  {
+    label: "Personnalisation",
+    view: "personnalisation",
+    enabled: false,
+  },
+  {
+    label: "VIDAL System",
+    view: "vidal",
+    enabled: false,
+  },
+  {
+    label: "Quitter",
+    view: "quitter",
+    enabled: true,
+  },
+];
+
+function App() {
+  function handleMenuClick(item: MenuItem) {
+    if (item.view === "quitter") {
+      window.close();
+      return;
+    }
+
+    alert(`Ouverture: ${item.label}`);
+  }
+
+  function openDeveloperWebsite() {
+    window.open("https://yassinebibi.de", "_blank");
+  }
+
+  return (
+    <main className="app-shell">
+      <section className="main-menu">
+        <header className="main-menu-header">
+          <p className="app-kicker">Système de gestion du cabinet</p>
+          <h1>Cabinet Dr. Med Bibi</h1>
+        </header>
+
+        <section className="menu-section">
+          <p className="app-subtitle">Menu général</p>
+
+          <div className="menu-grid">
+            {menuItems.map((item) => (
+              <button
+                key={item.view}
+                type="button"
+                disabled={!item.enabled}
+                className={item.enabled ? "menu-button" : "menu-button disabled"}
+                onClick={() => handleMenuClick(item)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <footer className="main-menu-footer">
+          <div className="footer-left">
+            <span>© 2025 Cabinet Dr. Med Bibi</span>
+            <span className="footer-separator">•</span>
+            <span>Application locale privée</span>
+          </div>
+
+          <button
+            type="button"
+            className="developer-link"
+            onClick={openDeveloperWebsite}
+          >
+            Developed by Engr. Yassine Bibi
+          </button>
+        </footer>
+      </section>
+    </main>
+  );
+}
+
+export default App;
