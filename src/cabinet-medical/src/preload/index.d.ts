@@ -53,7 +53,10 @@ declare global {
   interface Window {
     electron: ElectronAPI
     api: {
-      searchPatients: (query: string, field: 'nom' | 'prenom' | 'code') => Promise<PatientRow[]>
+      searchPatients: (p: {
+        field: 'nom' | 'prenom' | 'code'
+        value: string
+      }) => Promise<PatientRow[]>
       getPatient: (compteur: number) => Promise<PatientFull | null>
     }
   }

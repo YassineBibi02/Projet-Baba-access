@@ -10,7 +10,15 @@ function openDatabase(): void {
   const dbPath = is.dev
     ? join(app.getAppPath(), 'data/patients.sqlite')
     : join(process.resourcesPath, 'data/patients.sqlite')
-  db = new Database(dbPath, { readonly: true })
+
+  db = new Database(dbPath)
+  db.pragma('cache_size = -8000')
+
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_patients_prenom ON patients (prenom)')
+  } catch {
+    // non-fatal on OneDrive / read-only file systems
+  }
 }
 
 function getStmt(sql: string): Database.Statement {
@@ -53,27 +61,38 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
-
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
   openDatabase()
 
+  // Each field seeks independently through the full sorted list — no cross-field filtering.
+  // nom/prenom use >= so the list "jumps to" that alphabetical position and shows everything from there.
+  // code uses LIKE because dossier numbers aren't naturally seeked by prefix.
   ipcMain.handle(
     'patients:search',
-    (_event, query: string, field: 'nom' | 'prenom' | 'code') => {
-      if (!db || !query || query.trim().length === 0) return []
-      const col =
-        field === 'nom' ? 'nom' : field === 'prenom' ? 'prenom' : 'numero_dossier'
-      const sql = `
-        SELECT compteur, nom, prenom, numero_dossier, date_naissance, ville, tel_domicile
-        FROM patients
-        WHERE ${col} LIKE ?
-        ORDER BY nom, prenom
-        LIMIT 60
-      `
-      return getStmt(sql).all(`%${query.trim()}%`)
+    (_event, p: { field: 'nom' | 'prenom' | 'code'; value: string }) => {
+      if (!db || !p.value.trim()) return []
+      const v = p.value.trim()
+      const cols = 'compteur, nom, prenom, numero_dossier, date_naissance, ville, tel_domicile'
+
+      if (p.field === 'nom') {
+        return getStmt(
+          `SELECT ${cols} FROM patients WHERE nom >= ? ORDER BY nom LIMIT 60`
+        ).all(v.toUpperCase())
+      }
+      if (p.field === 'prenom') {
+        // Stored in Title Case — match by capitalising the first letter
+        const q = v.charAt(0).toUpperCase() + v.slice(1)
+        return getStmt(
+          `SELECT ${cols} FROM patients WHERE prenom >= ? ORDER BY prenom LIMIT 60`
+        ).all(q)
+      }
+      // code
+      return getStmt(
+        `SELECT ${cols} FROM patients WHERE numero_dossier LIKE ? ORDER BY numero_dossier LIMIT 60`
+      ).all('%' + v + '%')
     }
   )
 
@@ -90,7 +109,5 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  if (process.platform !== 'darwin') app.quit()
 })

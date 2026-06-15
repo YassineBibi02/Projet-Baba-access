@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+﻿import { useState, useRef, useCallback, useEffect } from 'react'
 import './PatientSearch.css'
 
 interface PatientRow {
@@ -44,354 +44,320 @@ interface PatientFull {
   notes: string | null
 }
 
-interface Props {
-  onBack: () => void
-}
+interface Props { onBack: () => void }
 
-function formatDate(iso: string | null): string {
+function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   const [y, m, d] = iso.split('-')
+  if (!y || !m || !d) return iso
   return `${d}/${m}/${y}`
 }
 
 function calcAge(iso: string | null): string {
   if (!iso) return ''
-  const birth = new Date(iso)
+  const birth = new Date(iso + 'T00:00:00')
   const now = new Date()
+  now.setHours(0, 0, 0, 0)
   let years = now.getFullYear() - birth.getFullYear()
-  const md = now.getMonth() - birth.getMonth()
-  if (md < 0 || (md === 0 && now.getDate() < birth.getDate())) years--
+  const bdThisYear = new Date(now.getFullYear(), birth.getMonth(), birth.getDate())
+  if (now < bdThisYear) years--
   if (years < 0) return ''
+  const lastBd = new Date(
+    now.getFullYear() - (now < bdThisYear ? 1 : 0),
+    birth.getMonth(),
+    birth.getDate()
+  )
+  const days = Math.round((now.getTime() - lastBd.getTime()) / 86_400_000)
   if (years === 0) {
-    const months = (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth()
-    return `${months} mois`
+    const tot = Math.round((now.getTime() - birth.getTime()) / 86_400_000)
+    return tot < 31 ? `${tot} jours` : `${Math.floor(tot / 30.44)} mois`
   }
-  return `${years} ans`
+  return days === 0 ? `${years} ans` : `${years} ans ${days} jours`
 }
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null
   return (
-    <div className="sr-info-row">
-      <span className="sr-info-label">{label}</span>
-      <span className="sr-info-value">{value}</span>
+    <div className="ps-info-row">
+      <span className="ps-info-label">{label}</span>
+      <span className="ps-info-value">{value}</span>
     </div>
   )
 }
 
-function useField(field: 'nom' | 'prenom' | 'code') {
-  const [value, setValue] = useState('')
-  const [results, setResults] = useState<PatientRow[]>([])
-  const [open, setOpen] = useState(false)
-  const [cursor, setCursor] = useState(-1)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const runSearch = useCallback(
-    async (q: string) => {
-      if (!q.trim()) {
-        setResults([])
-        setOpen(false)
-        return
-      }
-      const rows = await window.api.searchPatients(q.trim(), field)
-      setResults(rows)
-      setOpen(rows.length > 0)
-      setCursor(-1)
-    },
-    [field]
-  )
-
-  useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (!value.trim()) {
-      setResults([])
-      setOpen(false)
-      return
-    }
-    // 40ms debounce — just enough to avoid duplicate rapid-fire calls
-    timerRef.current = setTimeout(() => runSearch(value), 40)
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [value, runSearch])
-
-  return { value, setValue, results, open, setOpen, cursor, setCursor, inputRef }
-}
-
 export default function PatientSearch({ onBack }: Props) {
-  const nom = useField('nom')
-  const prenom = useField('prenom')
-  const code = useField('code')
+  const [nom, setNom]       = useState('')
+  const [prenom, setPrenom] = useState('')
+  const [code, setCode]     = useState('')
+  const [results, setResults] = useState<PatientRow[]>([])
+  const [openField, setOpenField] = useState<'nom' | 'prenom' | 'code' | null>(null)
+  const [cursor, setCursor] = useState(-1)
   const [patient, setPatient] = useState<PatientFull | null>(null)
-  const formRef = useRef<HTMLDivElement>(null)
 
-  // Close all dropdowns on outside click
-  const { setOpen: nomSetOpen } = nom
-  const { setOpen: prenomSetOpen } = prenom
-  const { setOpen: codeSetOpen } = code
+  const nomRef    = useRef<HTMLInputElement>(null)
+  const formRef   = useRef<HTMLDivElement>(null)
+  const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Close dropdown on outside click
   useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (!formRef.current?.contains(e.target as Node)) {
-        nomSetOpen(false)
-        prenomSetOpen(false)
-        codeSetOpen(false)
-      }
+    const h = (e: MouseEvent) => {
+      if (!formRef.current?.contains(e.target as Node)) setOpenField(null)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [nomSetOpen, prenomSetOpen, codeSetOpen])
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
 
-  async function pick(row: PatientRow) {
-    nom.setValue(row.nom ?? '')
-    nom.setOpen(false)
-    prenom.setValue(row.prenom ?? '')
-    prenom.setOpen(false)
-    code.setValue(row.numero_dossier ?? '')
-    code.setOpen(false)
-    const full = await window.api.getPatient(row.compteur)
-    setPatient(full)
+  // Seek through the full sorted list for the given field — no cross-filtering
+  function seek(field: 'nom' | 'prenom' | 'code', value: string) {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (!value.trim()) { setResults([]); setOpenField(null); return }
+    setOpenField(field)
+    timerRef.current = setTimeout(async () => {
+      const rows = await window.api.searchPatients({ field, value: value.trim() })
+      setResults(rows)
+      setCursor(-1)
+    }, 40)
   }
 
-  function onKey(e: React.KeyboardEvent<HTMLInputElement>, f: ReturnType<typeof useField>) {
-    if (!f.open) return
+  const pick = useCallback(async (row: PatientRow) => {
+    setNom(row.nom ?? '')
+    setPrenom(row.prenom ?? '')
+    setCode(row.numero_dossier ?? '')
+    setOpenField(null)
+    setResults([])
+    const full = await window.api.getPatient(row.compteur)
+    setPatient(full)
+  }, [])
+
+  function onKey(e: React.KeyboardEvent) {
+    if (!openField || results.length === 0) return
     if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      f.setCursor((c) => Math.min(c + 1, f.results.length - 1))
+      e.preventDefault(); setCursor(c => Math.min(c + 1, results.length - 1))
     } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      f.setCursor((c) => Math.max(c - 1, 0))
-    } else if (e.key === 'Enter' && f.cursor >= 0) {
-      e.preventDefault()
-      pick(f.results[f.cursor])
+      e.preventDefault(); setCursor(c => Math.max(c - 1, 0))
+    } else if (e.key === 'Enter' && cursor >= 0) {
+      e.preventDefault(); pick(results[cursor])
     } else if (e.key === 'Escape') {
-      f.setOpen(false)
+      setOpenField(null)
     }
   }
 
   function reset() {
-    nom.setValue('')
-    prenom.setValue('')
-    code.setValue('')
-    setPatient(null)
-    nom.inputRef.current?.focus()
+    setNom(''); setPrenom(''); setCode('')
+    setResults([]); setOpenField(null); setPatient(null); setCursor(-1)
+    nomRef.current?.focus()
+  }
+
+  const open = openField !== null && results.length > 0
+
+  function DropdownRows(
+    colA: (r: PatientRow) => string | null,
+    colB: (r: PatientRow) => string | null,
+    aClass = ''
+  ) {
+    return results.map((r, i) => (
+      <li
+        key={r.compteur}
+        className={`ps-dd-row${i === cursor ? ' hi' : ''}`}
+        onMouseDown={() => pick(r)}
+        onMouseEnter={() => setCursor(i)}
+      >
+        <span className={`c-bold ${aClass}`}>{colA(r) ?? '—'}</span>
+        <span>{colB(r) ?? '—'}</span>
+        <span className="c-mono">{r.numero_dossier ?? '—'}</span>
+        <span className="c-dim">{fmtDate(r.date_naissance)}</span>
+      </li>
+    ))
   }
 
   return (
-    <div className="sr-shell">
-      <div className="sr-page">
+    <div className="ps-shell">
+      <div className="ps-page">
 
         {/* ── Header ── */}
-        <header className="sr-header">
-          <div className="sr-header-left">
-            <button className="sr-back" onClick={onBack}>← Menu général</button>
-            <h1 className="sr-title">Recherche patient</h1>
+        <header className="ps-header">
+          <h1 className="ps-title">Recherche patient</h1>
+          <div className="ps-header-btns">
+            <button className="ps-btn" onClick={onBack}>Menu général</button>
+            <button className="ps-btn" onClick={reset}>Nouvelle fiche</button>
           </div>
-          <button className="sr-new" onClick={reset}>Nouvelle fiche</button>
         </header>
 
-        {/* ── Search card ── */}
-        <div className="sr-card" ref={formRef}>
-          <div className="sr-fields">
+        {/* ── Search form ── */}
+        <div className="ps-card" ref={formRef}>
+          <div className="ps-form-layout">
 
-            {/* Nom */}
-            <div className="sr-field">
-              <label className="sr-label">Nom</label>
-              <div className="sr-input-wrap">
-                <input
-                  ref={nom.inputRef}
-                  className="sr-input"
-                  autoFocus
-                  autoComplete="off"
-                  placeholder="Rechercher par nom…"
-                  value={nom.value}
-                  onChange={(e) => nom.setValue(e.target.value)}
-                  onFocus={() => nom.results.length > 0 && nom.setOpen(true)}
-                  onKeyDown={(e) => onKey(e, nom)}
-                />
-                {nom.value && (
-                  <button className="sr-clear" tabIndex={-1} onMouseDown={reset}>×</button>
-                )}
-                {nom.open && (
-                  <ul className="sr-dropdown">
-                    <li className="sr-dd-head">
-                      <span>Nom</span><span>Prénom</span><span>Code</span><span>Naissance</span>
-                    </li>
-                    {nom.results.map((r, i) => (
-                      <li
-                        key={r.compteur}
-                        className={`sr-dd-row${i === nom.cursor ? ' hi' : ''}`}
-                        onMouseDown={() => pick(r)}
-                        onMouseEnter={() => nom.setCursor(i)}
-                      >
-                        <span className="c-bold">{r.nom}</span>
-                        <span>{r.prenom}</span>
-                        <span className="c-mono">{r.numero_dossier}</span>
-                        <span className="c-dim">{formatDate(r.date_naissance)}</span>
+            {/* Left column — search fields */}
+            <div className="ps-form-fields">
+
+              {/* Nom */}
+              <div className="ps-field-row">
+                <label className="ps-label">Nom :</label>
+                <div className="ps-input-wrap">
+                  <input
+                    ref={nomRef}
+                    className="ps-input"
+                    autoFocus
+                    autoComplete="off"
+                    value={nom}
+                    onChange={e => { setNom(e.target.value); setPatient(null); seek('nom', e.target.value) }}
+                    onFocus={() => seek('nom', nom)}
+                    onKeyDown={onKey}
+                  />
+                  {nom && <button className="ps-clear" tabIndex={-1} onMouseDown={reset}>×</button>}
+                  {open && openField === 'nom' && (
+                    <ul className="ps-dropdown">
+                      <li className="ps-dd-head">
+                        <span>Nom</span><span>Prénom</span><span>Code</span><span>Naissance</span>
                       </li>
-                    ))}
-                  </ul>
-                )}
+                      {DropdownRows(r => r.nom, r => r.prenom)}
+                    </ul>
+                  )}
+                </div>
               </div>
+
+              {/* Prénom */}
+              <div className="ps-field-row">
+                <label className="ps-label">Prénom :</label>
+                <div className="ps-input-wrap">
+                  <input
+                    className="ps-input"
+                    autoComplete="off"
+                    value={prenom}
+                    onChange={e => { setPrenom(e.target.value); setPatient(null); seek('prenom', e.target.value) }}
+                    onFocus={() => seek('prenom', prenom)}
+                    onKeyDown={onKey}
+                  />
+                  {open && openField === 'prenom' && (
+                    <ul className="ps-dropdown">
+                      <li className="ps-dd-head">
+                        <span>Prénom</span><span>Nom</span><span>Code</span><span>Naissance</span>
+                      </li>
+                      {DropdownRows(r => r.prenom, r => r.nom)}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              {/* Code */}
+              <div className="ps-field-row">
+                <label className="ps-label">Code :</label>
+                <div className="ps-input-wrap">
+                  <input
+                    className="ps-input ps-input--mono"
+                    autoComplete="off"
+                    value={code}
+                    onChange={e => { setCode(e.target.value); setPatient(null); seek('code', e.target.value) }}
+                    onFocus={() => seek('code', code)}
+                    onKeyDown={onKey}
+                  />
+                  {open && openField === 'code' && (
+                    <ul className="ps-dropdown">
+                      <li className="ps-dd-head">
+                        <span>Code</span><span>Nom</span><span>Prénom</span><span>Naissance</span>
+                      </li>
+                      {DropdownRows(r => r.numero_dossier, r => r.nom, 'c-mono')}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
             </div>
 
-            {/* Prénom */}
-            <div className="sr-field">
-              <label className="sr-label">Prénom</label>
-              <div className="sr-input-wrap">
-                <input
-                  ref={prenom.inputRef}
-                  className="sr-input"
-                  autoComplete="off"
-                  placeholder="Rechercher par prénom…"
-                  value={prenom.value}
-                  onChange={(e) => prenom.setValue(e.target.value)}
-                  onFocus={() => prenom.results.length > 0 && prenom.setOpen(true)}
-                  onKeyDown={(e) => onKey(e, prenom)}
-                />
-                {prenom.open && (
-                  <ul className="sr-dropdown">
-                    <li className="sr-dd-head">
-                      <span>Prénom</span><span>Nom</span><span>Code</span><span>Naissance</span>
-                    </li>
-                    {prenom.results.map((r, i) => (
-                      <li
-                        key={r.compteur}
-                        className={`sr-dd-row${i === prenom.cursor ? ' hi' : ''}`}
-                        onMouseDown={() => pick(r)}
-                        onMouseEnter={() => prenom.setCursor(i)}
-                      >
-                        <span className="c-bold">{r.prenom}</span>
-                        <span>{r.nom}</span>
-                        <span className="c-mono">{r.numero_dossier}</span>
-                        <span className="c-dim">{formatDate(r.date_naissance)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+            {/* Right column — meta */}
+            <div className="ps-form-meta">
+              <div className="ps-meta-row">
+                <span className="ps-meta-label">Fiche des notes :</span>
+                {patient
+                  ? <span className={`ps-notes-chip${patient.notes_state ? ' on' : ''}`}>
+                      {patient.notes_state ? 'Oui' : 'Non'}
+                    </span>
+                  : <span className="ps-notes-chip">—</span>}
               </div>
-            </div>
-
-            {/* Code */}
-            <div className="sr-field sr-field--code">
-              <label className="sr-label">Code dossier</label>
-              <div className="sr-input-wrap">
-                <input
-                  ref={code.inputRef}
-                  className="sr-input sr-input--mono"
-                  autoComplete="off"
-                  placeholder="Ex: 20075/15"
-                  value={code.value}
-                  onChange={(e) => code.setValue(e.target.value)}
-                  onFocus={() => code.results.length > 0 && code.setOpen(true)}
-                  onKeyDown={(e) => onKey(e, code)}
-                />
-                {code.open && (
-                  <ul className="sr-dropdown">
-                    <li className="sr-dd-head">
-                      <span>Code</span><span>Nom</span><span>Prénom</span><span>Naissance</span>
-                    </li>
-                    {code.results.map((r, i) => (
-                      <li
-                        key={r.compteur}
-                        className={`sr-dd-row${i === code.cursor ? ' hi' : ''}`}
-                        onMouseDown={() => pick(r)}
-                        onMouseEnter={() => code.setCursor(i)}
-                      >
-                        <span className="c-mono c-bold">{r.numero_dossier}</span>
-                        <span>{r.nom}</span>
-                        <span>{r.prenom}</span>
-                        <span className="c-dim">{formatDate(r.date_naissance)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              <div className="ps-meta-row">
+                <span className="ps-meta-label">Âge :</span>
+                <span className="ps-age-val">
+                  {patient?.date_naissance ? calcAge(patient.date_naissance) : '—'}
+                </span>
               </div>
             </div>
 
           </div>
         </div>
 
-        {/* ── Patient profile ── */}
+        {/* ── Patient detail ── */}
         {patient && (
-          <div className="sr-patient">
+          <div className="ps-patient">
 
-            <div className="sr-patient-header">
+            <div className="ps-patient-head">
               <div>
-                <p className="sr-patient-sub">
-                  {patient.civilite ?? ''} · {patient.sexe ?? ''} · {patient.situation_famille ?? ''}
+                <p className="ps-patient-sub">
+                  {[patient.civilite, patient.sexe, patient.situation_famille].filter(Boolean).join(' · ')}
                 </p>
-                <h2 className="sr-patient-name">
-                  {patient.prenom} <span>{patient.nom}</span>
-                  {patient.nom_jeune_fille && patient.nom_jeune_fille !== patient.nom
-                    ? <small> née {patient.nom_jeune_fille}</small>
-                    : null}
+                <h2 className="ps-patient-name">
+                  {patient.prenom} <strong>{patient.nom}</strong>
+                  {patient.nom_jeune_fille && patient.nom_jeune_fille !== patient.nom && (
+                    <small> née {patient.nom_jeune_fille}</small>
+                  )}
                 </h2>
               </div>
-              <div className="sr-patient-chips">
+              <div className="ps-chips">
                 {patient.date_naissance && (
-                  <span className="sr-chip sr-chip--age">
+                  <span className="ps-chip ps-chip--age">
                     {calcAge(patient.date_naissance)}
-                    <small> · {formatDate(patient.date_naissance)}</small>
+                    <small> · {fmtDate(patient.date_naissance)}</small>
                   </span>
                 )}
-                {patient.statut && <span className="sr-chip">{patient.statut}</span>}
-                {patient.couverture_sociale && <span className="sr-chip">{patient.couverture_sociale}</span>}
+                {patient.statut && <span className="ps-chip">{patient.statut}</span>}
+                {patient.couverture_sociale && <span className="ps-chip">{patient.couverture_sociale}</span>}
               </div>
             </div>
 
             {patient.remarques_medicales_importantes && (
-              <div className="sr-alert">
-                <strong>Important :</strong> {patient.remarques_medicales_importantes}
+              <div className="ps-alert">
+                <strong>⚠ Important :</strong> {patient.remarques_medicales_importantes}
               </div>
             )}
 
-            <div className="sr-patient-grid">
-              <section className="sr-section">
-                <h3 className="sr-section-title">Identification</h3>
-                <InfoRow label="Code dossier" value={patient.numero_dossier} />
-                <InfoRow label="Matricule" value={patient.matricule} />
-                <InfoRow label="Lieu de naissance" value={patient.lieu_naissance} />
-                <InfoRow label="Origine" value={patient.origine} />
+            <div className="ps-detail-grid">
+              <section className="ps-section">
+                <h3 className="ps-section-title">Identification</h3>
+                <InfoRow label="Code dossier"       value={patient.numero_dossier} />
+                <InfoRow label="Matricule"           value={patient.matricule} />
+                <InfoRow label="Lieu de naissance"  value={patient.lieu_naissance} />
+                <InfoRow label="Origine"            value={patient.origine} />
               </section>
-
-              <section className="sr-section">
-                <h3 className="sr-section-title">Contact</h3>
-                <InfoRow label="Adresse" value={patient.adresse} />
-                <InfoRow label="Ville" value={[patient.ville, patient.code_ville].filter(Boolean).join(' ')} />
+              <section className="ps-section">
+                <h3 className="ps-section-title">Contact</h3>
+                <InfoRow label="Adresse"     value={patient.adresse} />
+                <InfoRow label="Ville"       value={[patient.ville, patient.code_ville].filter(Boolean).join(' ')} />
                 <InfoRow label="Gouvernorat" value={patient.gouvernorat_pays} />
-                <InfoRow label="Tél. domicile" value={patient.tel_domicile} />
-                <InfoRow label="Tél. bureau" value={patient.tel_bureau} />
-                <InfoRow label="Proche" value={patient.proche} />
+                <InfoRow label="Tél. dom."   value={patient.tel_domicile} />
+                <InfoRow label="Tél. bur."   value={patient.tel_bureau} />
+                <InfoRow label="Proche"      value={patient.proche} />
                 <InfoRow label="Tél. proche" value={patient.tel_proche} />
               </section>
-
-              <section className="sr-section">
-                <h3 className="sr-section-title">Profession</h3>
+              <section className="ps-section">
+                <h3 className="ps-section-title">Profession</h3>
                 <InfoRow label="Profession" value={patient.profession} />
-                <InfoRow label="Employeur" value={patient.employeur} />
+                <InfoRow label="Employeur"  value={patient.employeur} />
               </section>
-
-              <section className="sr-section">
-                <h3 className="sr-section-title">Suivi</h3>
-                <InfoRow label="1ère consultation" value={formatDate(patient.date_premiere_consultation)} />
-                <InfoRow label="N° affiliation" value={patient.numero_affiliation} />
-                <div className="sr-consult-stub">
-                  Historique des consultations · à venir
-                </div>
+              <section className="ps-section">
+                <h3 className="ps-section-title">Suivi</h3>
+                <InfoRow label="1ère consultation" value={fmtDate(patient.date_premiere_consultation)} />
+                <InfoRow label="N° affiliation"    value={patient.numero_affiliation} />
               </section>
             </div>
 
             {patient.remarques && (
-              <div className="sr-remarks">
-                <span className="sr-remarks-label">Remarques</span>
+              <div className="ps-remarks">
+                <span className="ps-remarks-label">Remarques</span>
                 <p>{patient.remarques}</p>
               </div>
             )}
-
             {patient.notes && (
-              <div className="sr-remarks">
-                <span className="sr-remarks-label">Notes</span>
+              <div className="ps-remarks">
+                <span className="ps-remarks-label">Notes</span>
                 <p>{patient.notes}</p>
               </div>
             )}
@@ -400,9 +366,7 @@ export default function PatientSearch({ onBack }: Props) {
         )}
 
         {!patient && (
-          <p className="sr-hint">
-            Tapez dans l'un des champs ci-dessus — les résultats apparaissent instantanément.
-          </p>
+          <p className="ps-hint">Tapez dans un des champs pour chercher un patient.</p>
         )}
 
       </div>
