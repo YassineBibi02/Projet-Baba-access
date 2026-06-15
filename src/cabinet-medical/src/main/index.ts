@@ -54,18 +54,23 @@ app.whenReady().then(() => {
 
   openDatabase()
 
-  ipcMain.handle('patients:search', (_event, query: string) => {
-    if (!db || !query || query.trim().length === 0) return []
-    const q = `%${query.trim()}%`
-    const stmt = db.prepare(`
-      SELECT compteur, nom, prenom, numero_dossier, date_naissance, ville, tel_domicile
-      FROM patients
-      WHERE nom LIKE ? OR prenom LIKE ? OR numero_dossier LIKE ? OR tel_domicile LIKE ?
-      ORDER BY nom, prenom
-      LIMIT 80
-    `)
-    return stmt.all(q, q, q, q)
-  })
+  ipcMain.handle(
+    'patients:search',
+    (_event, query: string, field: 'nom' | 'prenom' | 'code') => {
+      if (!db || !query || query.trim().length === 0) return []
+      const q = `%${query.trim()}%`
+      const col =
+        field === 'nom' ? 'nom' : field === 'prenom' ? 'prenom' : 'numero_dossier'
+      const stmt = db.prepare(`
+        SELECT compteur, nom, prenom, numero_dossier, date_naissance, ville, tel_domicile
+        FROM patients
+        WHERE ${col} LIKE ?
+        ORDER BY nom, prenom
+        LIMIT 60
+      `)
+      return stmt.all(q)
+    }
+  )
 
   ipcMain.handle('patients:get', (_event, compteur: number) => {
     if (!db) return null
