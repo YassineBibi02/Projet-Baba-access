@@ -1,4 +1,6 @@
+import { useState } from "react";
 import "./App.css";
+import PatientSearch from "./components/PatientSearch";
 
 type MenuItem = {
   label: string;
@@ -70,17 +72,26 @@ const menuItems: MenuItem[] = [
 ];
 
 function App() {
+  const [currentView, setCurrentView] = useState<string | null>(null);
+
   function handleMenuClick(item: MenuItem) {
     if (item.view === "quitter") {
       window.close();
       return;
     }
-
+    if (item.view === "recherche-patient") {
+      setCurrentView("recherche-patient");
+      return;
+    }
     alert(`Ouverture: ${item.label}`);
   }
 
   function openDeveloperWebsite() {
     window.open("https://yassinebibi.de", "_blank");
+  }
+
+  if (currentView === "recherche-patient") {
+    return <PatientSearch onBack={() => setCurrentView(null)} />;
   }
 
   return (
