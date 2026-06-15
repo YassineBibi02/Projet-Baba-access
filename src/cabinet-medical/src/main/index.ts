@@ -77,10 +77,10 @@ app.whenReady().then(() => {
       if (p.field === 'nom') {
         const q = v.toUpperCase()
         const before = (getStmt(
-          `SELECT ${cols} FROM patients WHERE nom < ? ORDER BY nom DESC LIMIT 500`
+          `SELECT ${cols} FROM patients WHERE nom < ? ORDER BY nom DESC, prenom DESC LIMIT 500`
         ).all(q) as unknown[]).reverse()
         const after = getStmt(
-          `SELECT ${cols} FROM patients WHERE nom >= ? ORDER BY nom LIMIT 2000`
+          `SELECT ${cols} FROM patients WHERE nom >= ? ORDER BY nom, prenom LIMIT 2000`
         ).all(q)
         return { rows: [...before, ...after], seekIndex: before.length }
       }
@@ -88,10 +88,10 @@ app.whenReady().then(() => {
       if (p.field === 'prenom') {
         const q = v.charAt(0).toUpperCase() + v.slice(1)
         const before = (getStmt(
-          `SELECT ${cols} FROM patients WHERE prenom < ? ORDER BY prenom DESC LIMIT 500`
+          `SELECT ${cols} FROM patients WHERE prenom < ? ORDER BY prenom DESC, nom DESC LIMIT 500`
         ).all(q) as unknown[]).reverse()
         const after = getStmt(
-          `SELECT ${cols} FROM patients WHERE prenom >= ? ORDER BY prenom LIMIT 2000`
+          `SELECT ${cols} FROM patients WHERE prenom >= ? ORDER BY prenom, nom LIMIT 2000`
         ).all(q)
         return { rows: [...before, ...after], seekIndex: before.length }
       }
