@@ -16,9 +16,7 @@ function openDatabase(): void {
 
   try {
     db.exec('CREATE INDEX IF NOT EXISTS idx_patients_prenom ON patients (prenom)')
-  } catch {
-    // non-fatal on OneDrive / read-only file systems
-  }
+  } catch { /* non-fatal on OneDrive */ }
 }
 
 function getStmt(sql: string): Database.Statement {
@@ -67,38 +65,75 @@ app.whenReady().then(() => {
 
   openDatabase()
 
-  // Each field seeks independently through the full sorted list — no cross-field filtering.
-  // nom/prenom use >= so the list "jumps to" that alphabetical position and shows everything from there.
-  // code uses LIKE because dossier numbers aren't naturally seeked by prefix.
+  // Returns { rows, seekIndex } where seekIndex is the first row >= the typed value.
+  // 500 rows before the seek position + 2000 after = up to 2500 rows, virtually scrolled.
   ipcMain.handle(
     'patients:search',
     (_event, p: { field: 'nom' | 'prenom' | 'code'; value: string }) => {
-      if (!db || !p.value.trim()) return []
+      if (!db || !p.value.trim()) return { rows: [], seekIndex: 0 }
       const v = p.value.trim()
       const cols = 'compteur, nom, prenom, numero_dossier, date_naissance, ville, tel_domicile'
 
       if (p.field === 'nom') {
-        return getStmt(
-          `SELECT ${cols} FROM patients WHERE nom >= ? ORDER BY nom LIMIT 60`
-        ).all(v.toUpperCase())
-      }
-      if (p.field === 'prenom') {
-        // Stored in Title Case — match by capitalising the first letter
-        const q = v.charAt(0).toUpperCase() + v.slice(1)
-        return getStmt(
-          `SELECT ${cols} FROM patients WHERE prenom >= ? ORDER BY prenom LIMIT 60`
+        const q = v.toUpperCase()
+        const before = (getStmt(
+          `SELECT ${cols} FROM patients WHERE nom < ? ORDER BY nom DESC LIMIT 500`
+        ).all(q) as unknown[]).reverse()
+        const after = getStmt(
+          `SELECT ${cols} FROM patients WHERE nom >= ? ORDER BY nom LIMIT 2000`
         ).all(q)
+        return { rows: [...before, ...after], seekIndex: before.length }
       }
-      // code
-      return getStmt(
-        `SELECT ${cols} FROM patients WHERE numero_dossier LIKE ? ORDER BY numero_dossier LIMIT 60`
+
+      if (p.field === 'prenom') {
+        const q = v.charAt(0).toUpperCase() + v.slice(1)
+        const before = (getStmt(
+          `SELECT ${cols} FROM patients WHERE prenom < ? ORDER BY prenom DESC LIMIT 500`
+        ).all(q) as unknown[]).reverse()
+        const after = getStmt(
+          `SELECT ${cols} FROM patients WHERE prenom >= ? ORDER BY prenom LIMIT 2000`
+        ).all(q)
+        return { rows: [...before, ...after], seekIndex: before.length }
+      }
+
+      // code: substring match, no natural seek boundary
+      const rows = getStmt(
+        `SELECT ${cols} FROM patients WHERE numero_dossier LIKE ? ORDER BY numero_dossier LIMIT 1000`
       ).all('%' + v + '%')
+      return { rows, seekIndex: 0 }
     }
   )
 
   ipcMain.handle('patients:get', (_event, compteur: number) => {
     if (!db) return null
     return getStmt('SELECT * FROM patients WHERE compteur = ?').get(compteur) ?? null
+  })
+
+  ipcMain.handle('patients:consultations', (_event, compteur: number) => {
+    if (!db) return { consultations: [], themes: [] }
+    const consultations = getStmt(`
+      SELECT c.compteur_consultation, c.numero_dossier_medical, c.numero_consultation,
+             c.date_consultation, c.heure_consultation,
+             c.remarques_consultations, c.flag_remarques_consultations,
+             d.titre_dossier_medical, d.code_dossier_medical
+      FROM consultations c
+      LEFT JOIN dossiers d
+        ON d.compteur = c.compteur
+        AND d.numero_dossier_medical = c.numero_dossier_medical
+      WHERE c.compteur = ?
+      ORDER BY c.compteur_consultation DESC
+      LIMIT 500
+    `).all(compteur)
+    const themes = getStmt(`
+      SELECT compteur_consultation_themes, numero_dossier_medical, numero_consultation,
+             titre_theme, contenu_theme, ordre_titre,
+             date_theme, heure_theme, flag_examen
+      FROM consultation_themes
+      WHERE compteur = ?
+      ORDER BY compteur_consultation_themes ASC
+      LIMIT 5000
+    `).all(compteur)
+    return { consultations, themes }
   })
 
   createWindow()

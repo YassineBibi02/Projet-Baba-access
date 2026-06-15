@@ -10,6 +10,11 @@ export interface PatientRow {
   tel_domicile: string | null
 }
 
+export interface SearchResult {
+  rows: PatientRow[]
+  seekIndex: number
+}
+
 export interface PatientFull {
   compteur: number
   nom: string | null
@@ -49,6 +54,35 @@ export interface PatientFull {
   notes: string | null
 }
 
+export interface ConsultationRow {
+  compteur_consultation: number
+  numero_dossier_medical: number | null
+  numero_consultation: number | null
+  date_consultation: string | null
+  heure_consultation: string | null
+  remarques_consultations: string | null
+  flag_remarques_consultations: number | null
+  titre_dossier_medical: string | null
+  code_dossier_medical: string | null
+}
+
+export interface ThemeRow {
+  compteur_consultation_themes: number
+  numero_dossier_medical: number | null
+  numero_consultation: number | null
+  titre_theme: string | null
+  contenu_theme: string | null
+  ordre_titre: number | null
+  date_theme: string | null
+  heure_theme: string | null
+  flag_examen: number | null
+}
+
+export interface ConsultData {
+  consultations: ConsultationRow[]
+  themes: ThemeRow[]
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -56,8 +90,9 @@ declare global {
       searchPatients: (p: {
         field: 'nom' | 'prenom' | 'code'
         value: string
-      }) => Promise<PatientRow[]>
+      }) => Promise<SearchResult>
       getPatient: (compteur: number) => Promise<PatientFull | null>
+      getConsultations: (compteur: number) => Promise<ConsultData>
     }
   }
 }
