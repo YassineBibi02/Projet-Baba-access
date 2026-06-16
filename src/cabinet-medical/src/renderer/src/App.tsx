@@ -2,6 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import PatientSearch from "./components/PatientSearch";
 import NewPatient from "./components/NewPatient";
+import PatientsFile from "./components/PatientsFile";
 
 type MenuItem = {
   label: string;
@@ -80,7 +81,7 @@ function App() {
       window.close();
       return;
     }
-    if (item.view === "recherche-patient" || item.view === "nouveau-patient") {
+    if (item.view === "recherche-patient" || item.view === "nouveau-patient" || item.view === "fichier-patients" ) {
       setCurrentView(item.view);
       return;
     }
@@ -94,7 +95,9 @@ function App() {
   if (currentView === "recherche-patient") {
     return <PatientSearch onBack={() => setCurrentView(null)} />;
   }
-
+  if (currentView === "fichier-patients") {
+    return <PatientsFile onBack={() => setCurrentView(null)} />;
+  }
   if (currentView === "nouveau-patient") {
     return <NewPatient onBack={() => setCurrentView(null)} />;
   }
