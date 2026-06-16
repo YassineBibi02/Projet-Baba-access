@@ -1,32 +1,29 @@
 :root {
-  /*
-    Global size control.
-    Increase this for your father.
+  --ui-scale: 1.0;
 
-    1.00 = normal
-    1.20 = large
-    1.35 = very readable
-    1.50 = extra large
-  */
-  --ui-scale: 1.25;
+  --font-base: calc(14px * var(--ui-scale));
+  --font-title: calc(32px * var(--ui-scale));
+  --font-subtitle: calc(13px * var(--ui-scale));
+  --font-button: calc(15px * var(--ui-scale));
 
-  --font-base: calc(18px * var(--ui-scale));
-  --font-title: calc(40px * var(--ui-scale));
-  --font-subtitle: calc(23px * var(--ui-scale));
-  --font-button: calc(20px * var(--ui-scale));
+  --page-padding: calc(28px * var(--ui-scale));
+  --button-height: calc(44px * var(--ui-scale));
+  --button-gap-y: calc(10px * var(--ui-scale));
+  --button-gap-x: calc(28px * var(--ui-scale));
 
-  --page-padding: calc(36px * var(--ui-scale));
-  --button-height: calc(56px * var(--ui-scale));
-  --button-gap-y: calc(18px * var(--ui-scale));
-  --button-gap-x: calc(42px * var(--ui-scale));
-
-  --green-950: #022c22;
-  --green-900: #064e3b;
-  --green-850: #075646;
-  --green-800: #065f46;
-  --green-700: #047857;
-  --green-600: #059669;
-  --green-100: #d1fae5;
+  /* ── Palette "Sauge" ──
+     Vert plus doux et moins saturé que le teal d'origine,
+     pensé pour rester confortable à l'œil sur de longues sessions. */
+  --green-950: #14322a;
+  --green-900: #1d4a3a;
+  --green-850: #234f3f;
+  --green-800: #2c5c49;
+  --green-700: #3c7059;
+  --green-600: #4f8a6c;
+  --green-300: #a8d9bf;
+  --green-200: #cdebda;
+  --green-100: #e6f6ee;
+  --mint-50:   #f5fbf7;
 
   --grey-950: #030712;
   --grey-900: #111827;
@@ -41,19 +38,20 @@
   --white: #ffffff;
 
   --button-bg: #f8fafc;
-  --button-active: #e5e7eb;
+  --button-active: #e3f3ea;
   --button-disabled: #cbd5e1;
 
-  --link-hover: #60a5fa;
+  --link-hover: #7fd1ac;
+
+  --shadow-soft: rgba(15, 35, 28, 0.18);
+  --shadow-soft-strong: rgba(15, 35, 28, 0.24);
+  --highlight-soft: rgba(255, 255, 255, 0.55);
+  --highlight-faint: rgba(255, 255, 255, 0.12);
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
-html,
-body,
-#root {
+html, body, #root {
   width: 100%;
   height: 100%;
   margin: 0;
@@ -67,31 +65,17 @@ body {
   overflow: hidden;
 }
 
-button {
-  font-family: inherit;
-}
+button { font-family: inherit; }
 
 .app-shell {
   width: 100vw;
   height: 100vh;
-  padding: clamp(12px, 4vh, var(--page-padding)) var(--page-padding);
+  padding: clamp(8px, 3vh, var(--page-padding)) var(--page-padding);
   background:
-    radial-gradient(
-      circle at 18% 12%,
-      rgba(255, 255, 255, 0.12),
-      transparent 24%
-    ),
-    radial-gradient(
-      circle at 82% 78%,
-      rgba(209, 250, 229, 0.11),
-      transparent 28%
-    ),
-    linear-gradient(
-      135deg,
-      var(--green-900) 0%,
-      var(--green-800) 48%,
-      var(--green-850) 100%
-    );
+    radial-gradient(circle at 14% 8%, rgba(255,255,255,0.16), transparent 24%),
+    radial-gradient(circle at 88% 16%, rgba(255,255,255,0.08), transparent 30%),
+    radial-gradient(circle at 80% 84%, rgba(168,217,191,0.16), transparent 30%),
+    linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 48%, var(--green-850) 100%);
 }
 
 .main-menu {
@@ -103,16 +87,16 @@ button {
 
 .main-menu-header {
   text-align: center;
-  padding-top: clamp(16px, 8vh, calc(88px * var(--ui-scale)));
+  padding-top: clamp(12px, 5vh, calc(56px * var(--ui-scale)));
 }
 
 .app-kicker {
-  margin: 0 0 calc(12px * var(--ui-scale));
-  font-size: calc(15px * var(--ui-scale));
+  margin: 0 0 calc(8px * var(--ui-scale));
+  font-size: calc(11px * var(--ui-scale));
   font-weight: 700;
-  letter-spacing: calc(2px * var(--ui-scale));
+  letter-spacing: calc(2.5px * var(--ui-scale));
   text-transform: uppercase;
-  color: rgba(243, 244, 246, 0.82);
+  color: rgba(243,244,246,0.75);
 }
 
 .main-menu h1 {
@@ -121,24 +105,24 @@ button {
   line-height: 1.05;
   font-weight: 800;
   color: var(--white);
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .menu-section {
-  width: min(1000px, 92vw);
+  width: min(860px, 92vw);
   margin: 0 auto;
   align-self: center;
-  transform: translateY(min(calc(22px * var(--ui-scale)), 2vh));
+  transform: translateY(min(calc(14px * var(--ui-scale)), 1.5vh));
 }
 
 .app-subtitle {
-  margin: 0 0 clamp(12px, 5vh, calc(60px * var(--ui-scale)));
+  margin: 0 0 clamp(10px, 3.5vh, calc(36px * var(--ui-scale)));
   text-align: center;
   font-size: var(--font-subtitle);
-  font-weight: 800;
-  color: rgba(243, 244, 246, 0.92);
+  font-weight: 700;
+  color: rgba(243,244,246,0.80);
   text-transform: uppercase;
-  letter-spacing: calc(1px * var(--ui-scale));
+  letter-spacing: calc(1.5px * var(--ui-scale));
 }
 
 .menu-grid {
@@ -149,156 +133,116 @@ button {
 }
 
 .menu-button {
+  position: relative;
+  overflow: hidden;
   height: var(--button-height);
   border: 0;
   border-radius: calc(6px * var(--ui-scale));
-  background:
-    linear-gradient(
-      180deg,
-      #ffffff 0%,
-      var(--button-bg) 50%,
-      #edf2f7 100%
-    );
+  background: linear-gradient(180deg, #ffffff 0%, var(--button-bg) 50%, #e6f1ec 100%);
   color: var(--grey-900);
-
   font-size: var(--font-button);
-  font-weight: 800;
+  font-weight: 700;
   text-align: center;
-
   cursor: pointer;
-
   box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -2px 0 rgba(15, 23, 42, 0.08);
+    0 4px 14px var(--shadow-soft),
+    inset 0 1px 0 rgba(255,255,255,0.95),
+    inset 0 -2px 0 rgba(15,23,42,0.06);
+  transition: transform 0.15s, box-shadow 0.15s;
 }
 
+.menu-button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(115deg, transparent, var(--highlight-soft), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.6s ease;
+  pointer-events: none;
+}
+
+.menu-button:hover::after { left: 130%; }
+
 .menu-button:hover {
-  background:
-    linear-gradient(
-      180deg,
-      #ffffff 0%,
-      #f8fafc 48%,
-      #e2e8f0 100%
-    );
+  background: linear-gradient(180deg, #ffffff 0%, #f6fbf8 48%, #d9ede2 100%);
   transform: translateY(-1px);
   box-shadow:
-    0 10px 22px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 1),
-    inset 0 -2px 0 rgba(15, 23, 42, 0.08);
+    0 6px 18px var(--shadow-soft-strong),
+    inset 0 1px 0 rgba(255,255,255,1),
+    inset 0 -2px 0 rgba(15,23,42,0.06);
 }
 
 .menu-button:active {
   background: var(--button-active);
   transform: translateY(1px);
-  box-shadow:
-    0 4px 10px rgba(0, 0, 0, 0.18),
-    inset 0 2px 4px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 2px 6px var(--shadow-soft), inset 0 2px 4px rgba(15,23,42,0.14);
 }
 
-/* No yellow border/focus ring */
 .menu-button:focus,
-.menu-button:focus-visible {
-  outline: none;
-}
+.menu-button:focus-visible { outline: none; }
 
 .menu-button.disabled {
   color: var(--grey-500);
-  background:
-    linear-gradient(
-      180deg,
-      #e5e7eb 0%,
-      var(--button-disabled) 100%
-    );
+  background: linear-gradient(180deg, #e5e7eb 0%, var(--button-disabled) 100%);
   cursor: not-allowed;
-  opacity: 0.68;
-  box-shadow:
-    0 4px 10px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  opacity: 0.62;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.35);
 }
+
+.menu-button.disabled::after { content: none; }
 
 .menu-button.disabled:hover {
   transform: none;
   color: var(--grey-500);
-  background:
-    linear-gradient(
-      180deg,
-      #e5e7eb 0%,
-      var(--button-disabled) 100%
-    );
-  box-shadow:
-    0 4px 10px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  background: linear-gradient(180deg, #e5e7eb 0%, var(--button-disabled) 100%);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.35);
 }
 
 .main-menu-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: calc(20px * var(--ui-scale));
-  padding-bottom: calc(8px * var(--ui-scale));
-  color: rgba(243, 244, 246, 0.74);
+  gap: calc(16px * var(--ui-scale));
+  padding-bottom: calc(6px * var(--ui-scale));
+  color: rgba(243,244,246,0.65);
 }
 
 .footer-left {
   display: flex;
   align-items: center;
-  gap: calc(8px * var(--ui-scale));
-  font-size: calc(12px * var(--ui-scale));
+  gap: calc(6px * var(--ui-scale));
+  font-size: calc(11px * var(--ui-scale));
   font-weight: 600;
   letter-spacing: 0.2px;
 }
 
-.footer-separator {
-  opacity: 0.55;
-}
+.footer-separator { opacity: 0.45; }
 
 .developer-link {
   border: none;
   background: transparent;
-  color: rgba(243, 244, 246, 0.74);
-  font-size: calc(12px * var(--ui-scale));
+  color: rgba(243,244,246,0.65);
+  font-size: calc(11px * var(--ui-scale));
   font-weight: 600;
   cursor: pointer;
-  text-decoration: none;
-  padding: calc(6px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  padding: calc(4px * var(--ui-scale)) calc(6px * var(--ui-scale));
 }
 
-.developer-link:hover {
-  color: var(--link-hover);
-  text-decoration: underline;
-}
-
+.developer-link:hover { color: var(--link-hover); text-decoration: underline; }
 .developer-link:focus,
-.developer-link:focus-visible {
-  outline: none;
-}
+.developer-link:focus-visible { outline: none; }
 
 @media (max-width: 900px) {
-  .menu-section {
-    width: min(620px, 92vw);
-  }
-
-  .menu-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .main-menu-footer {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+  .menu-section { width: min(520px, 92vw); }
+  .menu-grid { grid-template-columns: 1fr; }
+  .main-menu-footer { flex-direction: column; align-items: flex-start; }
 }
 
-@media (max-height: 740px) {
-  .app-kicker {
-    margin-bottom: clamp(6px, 1vh, calc(12px * var(--ui-scale)));
-  }
-
-  .menu-button {
-    height: clamp(36px, 7vh, var(--button-height));
-  }
-
-  .menu-grid {
-    gap: clamp(8px, 1.5vh, var(--button-gap-y)) var(--button-gap-x);
-  }
+@media (max-height: 700px) {
+  .app-kicker { margin-bottom: clamp(4px, 0.8vh, 8px); }
+  .menu-button { height: clamp(30px, 6vh, var(--button-height)); }
+  .menu-grid { gap: clamp(6px, 1.2vh, var(--button-gap-y)) var(--button-gap-x); }
 }
