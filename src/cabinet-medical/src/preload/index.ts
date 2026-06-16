@@ -11,7 +11,8 @@ const api = {
   }) => ipcRenderer.invoke('patients:load-more', p),
   getPatient: (compteur: number) => ipcRenderer.invoke('patients:get', compteur),
   getConsultations: (compteur: number) => ipcRenderer.invoke('patients:consultations', compteur),
-  lookupSearch: (p: { source: string; value: string }) => ipcRenderer.invoke('lookup:search', p)
+  lookupSearch: (p: { source: string; value: string }) => ipcRenderer.invoke('lookup:search', p),
+  lookupLoadMore: (p: { source: string; value: string; anchor: string }) => ipcRenderer.invoke('lookup:load-more', p)
 }
 
 if (process.contextIsolated) {

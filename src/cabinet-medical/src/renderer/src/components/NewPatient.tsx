@@ -63,21 +63,30 @@ interface LookupProps {
   options?: string[]   // Fixed list filtered in JS
 }
 
+interface LookupData { vals: string[]; hasAfter: boolean }
+const EMPTY_LD: LookupData = { vals: [], hasAfter: false }
+
 function Lookup({ value, onChange, size = 'md', source, options: fixedOpts }: LookupProps) {
   const [open, setOpen] = useState(false)
-  const [dbOptions, setDbOptions] = useState<string[]>([])
+  const [data, setData] = useState<LookupData>(EMPTY_LD)
   const containerRef = useRef<HTMLDivElement>(null)
+  const loadingRef = useRef(false)
   const hasLookup = !!(source || fixedOpts)
 
+  // Fetch from DB when opened or value changes
   useEffect(() => {
     if (!open || !source) return
     let alive = true
-    window.api.lookupSearch({ source, value: value.trim() }).then((rows) => {
-      if (alive) setDbOptions(rows.map((r) => r.val))
+    window.api.lookupSearch({ source, value: value.trim() }).then((result) => {
+      if (alive) setData(result)
     })
     return () => { alive = false }
   }, [open, value, source])
 
+  // Reset data when closed
+  useEffect(() => { if (!open) setData(EMPTY_LD) }, [open])
+
+  // Click outside to close
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
@@ -87,11 +96,31 @@ function Lookup({ value, onChange, size = 'md', source, options: fixedOpts }: Lo
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  async function loadMore() {
+    if (!source || !data.hasAfter || loadingRef.current || data.vals.length === 0) return
+    loadingRef.current = true
+    try {
+      const result = await window.api.lookupLoadMore({
+        source,
+        value: value.trim(),
+        anchor: data.vals[data.vals.length - 1],
+      })
+      setData(prev => ({ vals: [...prev.vals, ...result.vals], hasAfter: result.hasAfter }))
+    } finally {
+      loadingRef.current = false
+    }
+  }
+
+  function handleScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 60) loadMore()
+  }
+
   const displayOptions = fixedOpts
     ? (value.trim()
         ? fixedOpts.filter(o => o.toLowerCase().includes(value.toLowerCase()))
         : fixedOpts)
-    : dbOptions
+    : data.vals
 
   return (
     <div ref={containerRef} className={`np-lookup np-lookup--${size}`}>
@@ -112,7 +141,7 @@ function Lookup({ value, onChange, size = 'md', source, options: fixedOpts }: Lo
         <span>▲</span><span>▼</span>
       </button>
       {open && displayOptions.length > 0 && (
-        <div className="np-lookup-dd">
+        <div className="np-lookup-dd" onScroll={handleScroll}>
           {displayOptions.map(opt => (
             <div
               key={opt}
@@ -194,9 +223,9 @@ export default function NewPatient({ onBack }: Props) {
               <span className="np-lbl">Lieu</span>
               <Lookup size="sm" source="lieu_naissance" value={form.lieu_naissance} onChange={v => set('lieu_naissance', v)} />
               <span className="np-lbl">Sexe</span>
-              <Lookup size="xs" options={['M', 'F']} value={form.sexe} onChange={v => set('sexe', v)} />
+              <Lookup size="xs" source="sexe" value={form.sexe} onChange={v => set('sexe', v)} />
               <span className="np-lbl">Situation</span>
-              <Lookup size="md" options={['Célibataire', 'Marié(e)', 'Divorcé(e)', 'Veuf(ve)', 'Enfant']} value={form.situation_famille} onChange={v => set('situation_famille', v)} />
+              <Lookup size="md" source="situation_famille" value={form.situation_famille} onChange={v => set('situation_famille', v)} />
               {form.situation_famille && (
                 <span className="np-badge">{form.situation_famille}</span>
               )}

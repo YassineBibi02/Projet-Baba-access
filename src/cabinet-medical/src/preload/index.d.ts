@@ -98,7 +98,8 @@ declare global {
       }) => Promise<{ rows: PatientRow[]; hasMore: boolean }>
       getPatient: (compteur: number) => Promise<PatientFull | null>
       getConsultations: (compteur: number) => Promise<ConsultData>
-      lookupSearch: (p: { source: string; value: string }) => Promise<{ val: string }[]>
+      lookupSearch: (p: { source: string; value: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
+      lookupLoadMore: (p: { source: string; value: string; anchor: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
     }
   }
 }

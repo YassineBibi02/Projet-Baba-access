@@ -228,36 +228,55 @@ app.whenReady().then(() => {
     return getStmt('SELECT * FROM app_patients WHERE compteur = ?').get(compteur) ?? null
   })
 
-  // lookup:search — distinct autocomplete values from patient data
-  // source maps to a column in raw_t_fiche_administrative
-  // value filters with LIKE (starts-with ranked first); returns up to 50 rows
+  // Shared source definitions for lookup dropdowns — distinct values per column
+  const LOOKUP_SOURCES: Record<string, string> = {
+    lieu_naissance:     `SELECT DISTINCT TRIM(lieu_de_naissance)      AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(lieu_de_naissance,''))      != ''`,
+    adresse:            `SELECT DISTINCT TRIM(adresse)                AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(adresse,''))                != ''`,
+    ville:              `SELECT DISTINCT TRIM(ville)                  AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(ville,''))                  != ''`,
+    code_ville:         `SELECT DISTINCT TRIM(code_ville)             AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(code_ville,''))             != ''`,
+    gouvernorat:        `SELECT DISTINCT TRIM(gouvernorat_ou_pays)    AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(gouvernorat_ou_pays,''))    != ''`,
+    profession:         `SELECT DISTINCT TRIM(profession)             AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(profession,''))             != ''`,
+    employeur:          `SELECT DISTINCT TRIM(employeur)              AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(employeur,''))              != ''`,
+    activite_employeur: `SELECT DISTINCT TRIM(activite_employeur)    AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(activite_employeur,''))    != ''`,
+    adresse_prof:       `SELECT DISTINCT TRIM(adresse_profession)    AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(adresse_profession,''))    != ''`,
+    ville_prof:         `SELECT DISTINCT TRIM(ville_profession)      AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(ville_profession,''))      != ''`,
+    code_ville_prof:    `SELECT DISTINCT TRIM(code_ville_profession) AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(code_ville_profession,'')) != ''`,
+    proche:             `SELECT DISTINCT TRIM(proche)                 AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(proche,''))                 != ''`,
+    statut:             `SELECT DISTINCT TRIM(statut)                 AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(statut,''))                 != ''`,
+    situation_famille:  `SELECT DISTINCT TRIM(situation_de_famille)  AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(situation_de_famille,''))  != ''`,
+    sexe:               `SELECT DISTINCT TRIM(sexe)                   AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(sexe,''))                   != ''`,
+  }
+
+  // lookup:search — returns first 2500 distinct values alphabetically, plus hasAfter flag
   ipcMain.handle('lookup:search', (_event, p: { source: string; value: string }) => {
-    if (!db) return []
-    const SOURCES: Record<string, string> = {
-      lieu_naissance:     `SELECT DISTINCT TRIM(lieu_de_naissance)    AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(lieu_de_naissance,''))    != '' AND TRIM(lieu_de_naissance)    NOT GLOB '[0-9./*]*' AND LENGTH(TRIM(lieu_de_naissance))    >= 3`,
-      adresse:            `SELECT DISTINCT TRIM(adresse)              AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(adresse,''))              != '' AND LENGTH(TRIM(adresse))              >= 3`,
-      ville:              `SELECT DISTINCT TRIM(ville)                AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(ville,''))                != '' AND LENGTH(TRIM(ville))                >= 2`,
-      code_ville:         `SELECT DISTINCT TRIM(code_ville)           AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(code_ville,''))           != '' AND LENGTH(TRIM(code_ville))           >= 2`,
-      gouvernorat:        `SELECT DISTINCT TRIM(gouvernorat_ou_pays)  AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(gouvernorat_ou_pays,''))  != '' AND LENGTH(TRIM(gouvernorat_ou_pays))  >= 2`,
-      profession:         `SELECT DISTINCT TRIM(profession)           AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(profession,''))           != '' AND LENGTH(TRIM(profession))           >= 2`,
-      employeur:          `SELECT DISTINCT TRIM(employeur)            AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(employeur,''))            != '' AND LENGTH(TRIM(employeur))            >= 2`,
-      activite_employeur: `SELECT DISTINCT TRIM(activite_employeur)  AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(activite_employeur,''))  != '' AND LENGTH(TRIM(activite_employeur))  >= 2`,
-      adresse_prof:       `SELECT DISTINCT TRIM(adresse_profession)  AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(adresse_profession,''))  != '' AND LENGTH(TRIM(adresse_profession))  >= 3`,
-      ville_prof:         `SELECT DISTINCT TRIM(ville_profession)    AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(ville_profession,''))    != '' AND LENGTH(TRIM(ville_profession))    >= 2`,
-      code_ville_prof:    `SELECT DISTINCT TRIM(code_ville_profession) AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(code_ville_profession,'')) != '' AND LENGTH(TRIM(code_ville_profession)) >= 2`,
-      proche:             `SELECT DISTINCT TRIM(proche)               AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(proche,''))               != '' AND LENGTH(TRIM(proche))               >= 2`,
-      statut:             `SELECT DISTINCT TRIM(statut)               AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(statut,''))               != '' AND LENGTH(TRIM(statut))               >= 2`,
-      situation_famille:  `SELECT DISTINCT TRIM(situation_de_famille) AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(situation_de_famille,'')) != '' AND TRIM(situation_de_famille) NOT GLOB '[0-9*/+]*' AND LENGTH(TRIM(situation_de_famille)) >= 3`,
-    }
-    const baseSql = SOURCES[p.source]
-    if (!baseSql) return []
+    if (!db) return { vals: [], hasAfter: false }
+    const baseSql = LOOKUP_SOURCES[p.source]
+    if (!baseSql) return { vals: [], hasAfter: false }
     const v = p.value.trim()
+    const LIMIT = 2501
+    let rows: { val: string }[]
     if (v) {
-      return getStmt(
-        `SELECT val FROM (${baseSql}) WHERE val LIKE ? ORDER BY CASE WHEN val LIKE ? THEN 0 ELSE 1 END, val LIMIT 50`
-      ).all('%' + v + '%', v + '%')
+      rows = getStmt(`SELECT val FROM (${baseSql}) WHERE val LIKE ? ORDER BY val LIMIT ${LIMIT}`).all('%' + v + '%') as { val: string }[]
+    } else {
+      rows = getStmt(`SELECT val FROM (${baseSql}) ORDER BY val LIMIT ${LIMIT}`).all() as { val: string }[]
     }
-    return getStmt(`SELECT val FROM (${baseSql}) ORDER BY val LIMIT 50`).all()
+    return { vals: rows.slice(0, 2500).map(r => r.val), hasAfter: rows.length === LIMIT }
+  })
+
+  // lookup:load-more — cursor-based: returns next 500 values after anchor
+  ipcMain.handle('lookup:load-more', (_event, p: { source: string; value: string; anchor: string }) => {
+    if (!db) return { vals: [], hasAfter: false }
+    const baseSql = LOOKUP_SOURCES[p.source]
+    if (!baseSql) return { vals: [], hasAfter: false }
+    const v = p.value.trim()
+    const LIMIT = 501
+    let rows: { val: string }[]
+    if (v) {
+      rows = getStmt(`SELECT val FROM (${baseSql}) WHERE val LIKE ? AND val > ? ORDER BY val LIMIT ${LIMIT}`).all('%' + v + '%', p.anchor) as { val: string }[]
+    } else {
+      rows = getStmt(`SELECT val FROM (${baseSql}) WHERE val > ? ORDER BY val LIMIT ${LIMIT}`).all(p.anchor) as { val: string }[]
+    }
+    return { vals: rows.slice(0, 500).map(r => r.val), hasAfter: rows.length === LIMIT }
   })
 
   ipcMain.handle('patients:consultations', (_event, compteur: number) => {
