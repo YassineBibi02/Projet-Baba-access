@@ -74,7 +74,7 @@ button {
 .app-shell {
   width: 100vw;
   height: 100vh;
-  padding: var(--page-padding);
+  padding: clamp(12px, 4vh, var(--page-padding)) var(--page-padding);
   background:
     radial-gradient(
       circle at 18% 12%,
@@ -103,7 +103,7 @@ button {
 
 .main-menu-header {
   text-align: center;
-  padding-top: calc(88px * var(--ui-scale));
+  padding-top: clamp(16px, 8vh, calc(88px * var(--ui-scale)));
 }
 
 .app-kicker {
@@ -128,11 +128,11 @@ button {
   width: min(1000px, 92vw);
   margin: 0 auto;
   align-self: center;
-  transform: translateY(calc(22px * var(--ui-scale)));
+  transform: translateY(min(calc(22px * var(--ui-scale)), 2vh));
 }
 
 .app-subtitle {
-  margin: 0 0 calc(60px * var(--ui-scale));
+  margin: 0 0 clamp(12px, 5vh, calc(60px * var(--ui-scale)));
   text-align: center;
   font-size: var(--font-subtitle);
   font-weight: 800;
@@ -286,5 +286,19 @@ button {
   .main-menu-footer {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (max-height: 740px) {
+  .app-kicker {
+    margin-bottom: clamp(6px, 1vh, calc(12px * var(--ui-scale)));
+  }
+
+  .menu-button {
+    height: clamp(36px, 7vh, var(--button-height));
+  }
+
+  .menu-grid {
+    gap: clamp(8px, 1.5vh, var(--button-gap-y)) var(--button-gap-x);
   }
 }

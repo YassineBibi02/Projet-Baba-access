@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import './PatientSearch.css'
 
 interface PatientRow {
@@ -95,15 +95,16 @@ function fmtDate(iso: string | null): string {
   return `${d}/${m}/${y}`
 }
 
-function calcAge(iso: string | null): string {
-  if (!iso) return '—'
+function calcAge(iso: string | null): string | null {
+  if (!iso) return null
   const birth = new Date(iso + 'T00:00:00')
+  if (isNaN(birth.getTime())) return null
   const now = new Date()
   now.setHours(0, 0, 0, 0)
   let years = now.getFullYear() - birth.getFullYear()
   const bdThisYear = new Date(now.getFullYear(), birth.getMonth(), birth.getDate())
   if (now < bdThisYear) years--
-  if (years < 0) return '—'
+  if (years < 0) return null
   const lastBd = new Date(
     now.getFullYear() - (now < bdThisYear ? 1 : 0),
     birth.getMonth(),
@@ -131,6 +132,8 @@ function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow }: Dr
   const { rows, seekIndex } = result
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
+  const fromMouseRef = useRef(false)
+  const seekAdjustedRef = useRef(false)
 
   const ROW_H = useMemo(() => {
     const s = parseFloat(
@@ -142,15 +145,34 @@ function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow }: Dr
   const CONTAINER_H = VISIBLE_ROWS * ROW_H
   const BUFFER = 5
 
+  // Pass 1: scroll to estimated position so the seek row enters the render window
   useEffect(() => {
     const el = listRef.current
     if (!el || rows.length === 0) return
+    seekAdjustedRef.current = false
     const target = seekIndex * ROW_H
     el.scrollTop = target
     setScrollTop(target)
   }, [rows, seekIndex, ROW_H])
 
+  // Pass 2: once the seek row is in the DOM, read its real offsetTop and snap to it
+  useLayoutEffect(() => {
+    if (seekAdjustedRef.current) return
+    const el = listRef.current
+    if (!el) return
+    const seekEl = el.querySelector('[data-seek]') as HTMLElement | null
+    if (!seekEl) return
+    seekAdjustedRef.current = true
+    const offset = seekEl.offsetTop - el.offsetTop
+    if (offset !== el.scrollTop) {
+      el.scrollTop = offset
+      setScrollTop(offset)
+    }
+  })
+
+  // Keyboard navigation: scroll to keep the cursor row visible
   useEffect(() => {
+    if (fromMouseRef.current) { fromMouseRef.current = false; return }
     const el = listRef.current
     if (!el || cursor < 0) return
     const top = cursor * ROW_H
@@ -181,10 +203,11 @@ function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow }: Dr
           return (
             <div
               key={r.compteur}
-              className={['ps-dd-row', i === cursor ? 'hi' : '', i === seekIndex ? 'seek' : ''].filter(Boolean).join(' ')}
+              className={`ps-dd-row${i === cursor ? ' hi' : ''}`}
               style={{ minHeight: ROW_H }}
+              data-seek={i === seekIndex ? '' : undefined}
               onMouseDown={() => onPick(r)}
-              onMouseEnter={() => onHover(i)}
+              onMouseEnter={() => { fromMouseRef.current = true; onHover(i) }}
             >
               {renderRow(r)}
             </div>
@@ -297,39 +320,25 @@ function ConsultationList({ consultations, themes }: ConsultData) {
           <div key={c.compteur_consultation} className="ps-consult-item">
             <div className="ps-consult-row" onClick={() => toggle(c.compteur_consultation)}>
               <span className="ps-consult-chevron">{open ? '▼' : '▶'}</span>
-              <span className="ps-consult-date">{c.date_consultation ?? '—'}</span>
+              <span className="ps-consult-date">{fmtDate(c.date_consultation)}</span>
               <span className="ps-consult-time">{c.heure_consultation ?? ''}</span>
               <span className="ps-consult-dossier">
                 {c.titre_dossier_medical ?? c.code_dossier_medical ?? `Dossier ${c.numero_dossier_medical ?? '?'}`}
-              </span>
-              <span className="ps-consult-tags">
-                {cThemes.length > 0 && (
-                  <span className="ps-ctag">{cThemes.length} thème{cThemes.length > 1 ? 's' : ''}</span>
-                )}
-                {!!c.flag_remarques_consultations && (
-                  <span className="ps-ctag">Remarques</span>
-                )}
               </span>
             </div>
 
             {open && (
               <div className="ps-consult-body">
-                {cThemes.map(t => (
-                  <div
-                    key={t.compteur_consultation_themes}
-                    className={`ps-theme${t.flag_examen ? ' ps-theme--exam' : ''}`}
-                  >
-                    {t.titre_theme && <div className="ps-theme-title">{t.titre_theme}</div>}
-                    {t.contenu_theme && <div className="ps-theme-content">{t.contenu_theme}</div>}
+                {cThemes.map((t, idx) => (
+                  <div key={t.compteur_consultation_themes}>
+                    {idx > 0 && <hr className="ps-theme-sep" />}
+                    <div className={`ps-theme${t.flag_examen ? ' ps-theme--exam' : ''}`}>
+                      {t.titre_theme && <div className="ps-theme-title">{t.titre_theme}</div>}
+                      {t.contenu_theme && <div className="ps-theme-content">{t.contenu_theme}</div>}
+                    </div>
                   </div>
                 ))}
-                {c.remarques_consultations && (
-                  <div className="ps-theme">
-                    <div className="ps-theme-title">Remarques</div>
-                    <div className="ps-theme-content">{c.remarques_consultations}</div>
-                  </div>
-                )}
-                {cThemes.length === 0 && !c.remarques_consultations && (
+                {cThemes.length === 0 && (
                   <p className="ps-empty ps-empty--sm">Aucun détail enregistré.</p>
                 )}
               </div>
@@ -414,13 +423,23 @@ export default function PatientSearch({ onBack }: Props) {
 
   const open = openField !== null && result.rows.length > 0
 
+  let ageText = '—'
+  let ageError = false
+  if (patient) {
+    const a = calcAge(patient.date_naissance)
+    if (a === null) { ageText = 'Erreur'; ageError = true }
+    else ageText = a
+  }
+
   return (
     <div className="ps-shell">
       <div className="ps-topbar">
-        <h1 className="ps-title">Recherche patient</h1>
-        <div className="ps-topbar-btns">
-          <button className="ps-btn" onClick={onBack}>Menu général</button>
-          <button className="ps-btn" onClick={reset}>Nouvelle fiche</button>
+        <div className="ps-topbar-inner">
+          <h1 className="ps-title">Recherche patient</h1>
+          <div className="ps-topbar-btns">
+            <button className="ps-btn" onClick={onBack}>Menu général</button>
+            <button className="ps-btn" onClick={reset}>Nouvelle fiche</button>
+          </div>
         </div>
       </div>
 
@@ -529,8 +548,8 @@ export default function PatientSearch({ onBack }: Props) {
               </div>
               <div className="ps-meta-row">
                 <span className="ps-meta-label">Âge</span>
-                <span className="ps-age-val">
-                  {patient?.date_naissance ? calcAge(patient.date_naissance) : '—'}
+                <span className={`ps-age-val${ageError ? ' ps-age-val--err' : ''}`}>
+                  {ageText}
                 </span>
               </div>
             </div>
@@ -541,7 +560,7 @@ export default function PatientSearch({ onBack }: Props) {
             <div className="ps-card-footer">
               <span className="ps-patient-chip">
                 {[patient.civilite, patient.prenom, patient.nom].filter(Boolean).join(' ')}
-                {patient.date_naissance && ` · ${calcAge(patient.date_naissance)}`}
+                {!ageError && ageText !== '—' && ` · ${ageText}`}
                 {patient.remarques_medicales_importantes && (
                   <span className="ps-patient-chip-alert"> ⚠ Important</span>
                 )}
@@ -583,6 +602,32 @@ export default function PatientSearch({ onBack }: Props) {
           <p className="ps-empty">Tapez dans un des champs pour chercher un patient.</p>
         )}
 
+      </div>
+
+      {/* ── Footer ── */}
+      <div className="ps-footer">
+        <div className="ps-footer-inner">
+          <div className="ps-footer-row-fill">
+            <button className="ps-footer-btn" disabled>Administrative</button>
+            <button className="ps-footer-btn" disabled>Visu Dossier</button>
+            <button className="ps-footer-btn" disabled>Consultation Zoom</button>
+            <button className="ps-footer-btn" disabled>Ordonnance</button>
+            <button className="ps-footer-btn" disabled>Actes</button>
+            <button className="ps-footer-btn" disabled>Courrier</button>
+            <button className="ps-footer-btn" disabled={!patient} onClick={() => setShowResume(v => !v)}>
+              Résumé
+            </button>
+          </div>
+          <div className="ps-footer-row-center">
+            <button className="ps-footer-btn" disabled>Examens</button>
+            <button className="ps-footer-btn" disabled>Diag.Tare...</button>
+            <button className="ps-footer-btn" disabled>Fiche Per...</button>
+            <button className="ps-footer-btn" disabled>Mémo</button>
+            <button className="ps-footer-btn" disabled>Lst Recherche</button>
+            <button className="ps-footer-btn" disabled>Rendez-vous</button>
+            <button className="ps-footer-btn" onClick={onBack}>Menu général</button>
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -121,7 +121,7 @@ app.whenReady().then(() => {
         ON d.compteur = c.compteur
         AND d.numero_dossier_medical = c.numero_dossier_medical
       WHERE c.compteur = ?
-      ORDER BY c.compteur_consultation DESC
+      ORDER BY c.compteur_consultation ASC
       LIMIT 500
     `).all(compteur)
     const themes = getStmt(`
