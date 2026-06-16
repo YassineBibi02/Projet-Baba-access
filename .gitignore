@@ -1,3 +1,5 @@
 node_modules/
 .env
 ImportSQL\access_full.sqlite
+src/cabinet-medical/data/access_full.sqlite
+ImportSQL/access_full.sqlite
