@@ -5,8 +5,8 @@ interface PatientRow {
   compteur: number
   nom: string | null
   prenom: string | null
-  numero_dossier: string | null
-  date_naissance: string | null
+  n_dossier: string | null
+  date_de_naissance: string | null
   ville: string | null
   tel_domicile: string | null
 }
@@ -21,17 +21,17 @@ interface PatientFull {
   nom: string | null
   nom_jeune_fille: string | null
   prenom: string | null
-  numero_dossier: string | null
+  n_dossier: string | null
   matricule: string | null
-  date_naissance: string | null
-  lieu_naissance: string | null
+  date_de_naissance: string | null
+  lieu_de_naissance: string | null
   sexe: string | null
-  situation_famille: string | null
-  civilite: string | null
+  situation_de_famille: string | null
+  mr_mme_melle_enfant: string | null
   adresse: string | null
   ville: string | null
   code_ville: string | null
-  gouvernorat_pays: string | null
+  gouvernorat_ou_pays: string | null
   origine: string | null
   profession: string | null
   employeur: string | null
@@ -45,11 +45,11 @@ interface PatientFull {
   tel_proche: string | null
   statut: string | null
   couverture_sociale: string | null
-  numero_affiliation: string | null
+  n_affiliation: string | null
   remarques: string | null
   remarques_medicales_importantes: string | null
-  date_premiere_consultation: string | null
-  notes_state: number | null
+  date_1ere_consultation: string | null
+  notesstate: string | null
   notes: string | null
 }
 
@@ -88,17 +88,24 @@ const ROW_H_BASE = 36
 const VISIBLE_ROWS = 13
 const EMPTY: SearchResult = { rows: [], seekIndex: 0 }
 
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—'
-  const [y, m, d] = iso.split('-')
-  if (!y || !m || !d) return iso
-  return `${d}/${m}/${y}`
+// Access exports dates as "M/D/YYYY H:MM:SS" (US month-first)
+function parseAccessDate(raw: string | null): Date | null {
+  if (!raw) return null
+  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (!m) return null
+  const d = new Date(+m[3], +m[1] - 1, +m[2])
+  return isNaN(d.getTime()) ? null : d
 }
 
-function calcAge(iso: string | null): string | null {
-  if (!iso) return null
-  const birth = new Date(iso + 'T00:00:00')
-  if (isNaN(birth.getTime())) return null
+function fmtDate(raw: string | null): string {
+  const d = parseAccessDate(raw)
+  if (!d) return '—'
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+}
+
+function calcAge(raw: string | null): string | null {
+  const birth = parseAccessDate(raw)
+  if (!birth) return null
   const now = new Date()
   now.setHours(0, 0, 0, 0)
   let years = now.getFullYear() - birth.getFullYear()
@@ -235,20 +242,20 @@ function PatientDetails({ patient }: { patient: PatientFull }) {
         <tbody>
           <tr className="ps-dt-section"><th colSpan={4}>Identité</th></tr>
           <tr><th>Nom</th><td>{v(patient.nom)}</td><th>Prénom</th><td>{v(patient.prenom)}</td></tr>
-          <tr><th>Nom jeune fille</th><td>{v(patient.nom_jeune_fille)}</td><th>Civilité</th><td>{v(patient.civilite)}</td></tr>
-          <tr><th>Sexe</th><td>{v(patient.sexe)}</td><th>Situation familiale</th><td>{v(patient.situation_famille)}</td></tr>
-          <tr><th>Date de naissance</th><td>{fmtDate(patient.date_naissance)}</td><th>Lieu de naissance</th><td>{v(patient.lieu_naissance)}</td></tr>
+          <tr><th>Nom jeune fille</th><td>{v(patient.nom_jeune_fille)}</td><th>Civilité</th><td>{v(patient.mr_mme_melle_enfant)}</td></tr>
+          <tr><th>Sexe</th><td>{v(patient.sexe)}</td><th>Situation familiale</th><td>{v(patient.situation_de_famille)}</td></tr>
+          <tr><th>Date de naissance</th><td>{fmtDate(patient.date_de_naissance)}</td><th>Lieu de naissance</th><td>{v(patient.lieu_de_naissance)}</td></tr>
           <tr><th>Origine</th><td colSpan={3}>{v(patient.origine)}</td></tr>
 
           <tr className="ps-dt-section"><th colSpan={4}>Dossier</th></tr>
-          <tr><th>Code dossier</th><td>{v(patient.numero_dossier)}</td><th>Matricule</th><td>{v(patient.matricule)}</td></tr>
+          <tr><th>Code dossier</th><td>{v(patient.n_dossier)}</td><th>Matricule</th><td>{v(patient.matricule)}</td></tr>
           <tr><th>Statut</th><td>{v(patient.statut)}</td><th>Couverture sociale</th><td>{v(patient.couverture_sociale)}</td></tr>
-          <tr><th>N° affiliation</th><td>{v(patient.numero_affiliation)}</td><th>1ère consultation</th><td>{fmtDate(patient.date_premiere_consultation)}</td></tr>
-          <tr><th>Fiche de notes</th><td colSpan={3}>{patient.notes_state ? 'Oui' : 'Non'}</td></tr>
+          <tr><th>N° affiliation</th><td>{v(patient.n_affiliation)}</td><th>1ère consultation</th><td>{fmtDate(patient.date_1ere_consultation)}</td></tr>
+          <tr><th>Fiche de notes</th><td colSpan={3}>{patient.notesstate ? 'Oui' : 'Non'}</td></tr>
 
           <tr className="ps-dt-section"><th colSpan={4}>Contact</th></tr>
           <tr><th>Adresse</th><td colSpan={3}>{v(patient.adresse)}</td></tr>
-          <tr><th>Ville</th><td>{villeContact}</td><th>Gouvernorat / Pays</th><td>{v(patient.gouvernorat_pays)}</td></tr>
+          <tr><th>Ville</th><td>{villeContact}</td><th>Gouvernorat / Pays</th><td>{v(patient.gouvernorat_ou_pays)}</td></tr>
           <tr><th>Tél. domicile</th><td>{v(patient.tel_domicile)}</td><th>Tél. bureau</th><td>{v(patient.tel_bureau)}</td></tr>
           <tr><th>Proche</th><td>{v(patient.proche)}</td><th>Tél. proche</th><td>{v(patient.tel_proche)}</td></tr>
 
@@ -388,7 +395,7 @@ export default function PatientSearch({ onBack }: Props) {
   const pick = useCallback(async (row: PatientRow) => {
     setNom(row.nom ?? '')
     setPrenom(row.prenom ?? '')
-    setCode(row.numero_dossier ?? '')
+    setCode(row.n_dossier ?? '')
     setOpenField(null)
     setResult(EMPTY)
     setShowResume(false)
@@ -426,7 +433,7 @@ export default function PatientSearch({ onBack }: Props) {
   let ageText = '—'
   let ageError = false
   if (patient) {
-    const a = calcAge(patient.date_naissance)
+    const a = calcAge(patient.date_de_naissance)
     if (a === null) { ageText = 'Erreur'; ageError = true }
     else ageText = a
   }
@@ -472,8 +479,8 @@ export default function PatientSearch({ onBack }: Props) {
                       <>
                         <span className="c-bold">{r.nom ?? '—'}</span>
                         <span>{r.prenom ?? '—'}</span>
-                        <span className="c-mono">{r.numero_dossier ?? '—'}</span>
-                        <span className="c-dim">{fmtDate(r.date_naissance)}</span>
+                        <span className="c-mono">{r.n_dossier ?? '—'}</span>
+                        <span className="c-dim">{fmtDate(r.date_de_naissance)}</span>
                       </>
                     )}
                   />
@@ -501,8 +508,8 @@ export default function PatientSearch({ onBack }: Props) {
                       <>
                         <span className="c-bold">{r.prenom ?? '—'}</span>
                         <span>{r.nom ?? '—'}</span>
-                        <span className="c-mono">{r.numero_dossier ?? '—'}</span>
-                        <span className="c-dim">{fmtDate(r.date_naissance)}</span>
+                        <span className="c-mono">{r.n_dossier ?? '—'}</span>
+                        <span className="c-dim">{fmtDate(r.date_de_naissance)}</span>
                       </>
                     )}
                   />
@@ -528,10 +535,10 @@ export default function PatientSearch({ onBack }: Props) {
                     header={['Code', 'Nom', 'Prénom', 'Naissance']}
                     renderRow={r => (
                       <>
-                        <span className="c-bold c-mono">{r.numero_dossier ?? '—'}</span>
+                        <span className="c-bold c-mono">{r.n_dossier ?? '—'}</span>
                         <span>{r.nom ?? '—'}</span>
                         <span>{r.prenom ?? '—'}</span>
-                        <span className="c-dim">{fmtDate(r.date_naissance)}</span>
+                        <span className="c-dim">{fmtDate(r.date_de_naissance)}</span>
                       </>
                     )}
                   />
@@ -542,8 +549,8 @@ export default function PatientSearch({ onBack }: Props) {
             <div className="ps-form-meta">
               <div className="ps-meta-row">
                 <span className="ps-meta-label">Fiche notes</span>
-                <span className={`ps-notes-chip${patient?.notes_state ? ' on' : ''}`}>
-                  {patient ? (patient.notes_state ? 'Oui' : 'Non') : '—'}
+                <span className={`ps-notes-chip${patient?.notesstate ? ' on' : ''}`}>
+                  {patient ? (patient.notesstate ? 'Oui' : 'Non') : '—'}
                 </span>
               </div>
               <div className="ps-meta-row">
@@ -559,7 +566,7 @@ export default function PatientSearch({ onBack }: Props) {
           {patient && (
             <div className="ps-card-footer">
               <span className="ps-patient-chip">
-                {[patient.civilite, patient.prenom, patient.nom].filter(Boolean).join(' ')}
+                {[patient.mr_mme_melle_enfant, patient.prenom, patient.nom].filter(Boolean).join(' ')}
                 {!ageError && ageText !== '—' && ` · ${ageText}`}
                 {patient.remarques_medicales_importantes && (
                   <span className="ps-patient-chip-alert"> ⚠ Important</span>

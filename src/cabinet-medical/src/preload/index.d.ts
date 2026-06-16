@@ -4,8 +4,8 @@ export interface PatientRow {
   compteur: number
   nom: string | null
   prenom: string | null
-  numero_dossier: string | null
-  date_naissance: string | null
+  n_dossier: string | null
+  date_de_naissance: string | null
   ville: string | null
   tel_domicile: string | null
 }
@@ -20,18 +20,17 @@ export interface PatientFull {
   nom: string | null
   nom_jeune_fille: string | null
   prenom: string | null
-  numero_dossier: string | null
+  n_dossier: string | null
   matricule: string | null
-  date_naissance: string | null
-  date_naissance_raw: string | null
-  lieu_naissance: string | null
+  date_de_naissance: string | null
+  lieu_de_naissance: string | null
   sexe: string | null
-  situation_famille: string | null
-  civilite: string | null
+  situation_de_famille: string | null
+  mr_mme_melle_enfant: string | null
   adresse: string | null
   ville: string | null
   code_ville: string | null
-  gouvernorat_pays: string | null
+  gouvernorat_ou_pays: string | null
   origine: string | null
   profession: string | null
   employeur: string | null
@@ -43,14 +42,13 @@ export interface PatientFull {
   tel_domicile: string | null
   proche: string | null
   tel_proche: string | null
-  numero_affiliation: string | null
+  n_affiliation: string | null
   statut: string | null
   couverture_sociale: string | null
   remarques: string | null
   remarques_medicales_importantes: string | null
-  date_premiere_consultation: string | null
-  date_premiere_consultation_raw: string | null
-  notes_state: number | null
+  date_1ere_consultation: string | null
+  notesstate: string | null
   notes: string | null
 }
 

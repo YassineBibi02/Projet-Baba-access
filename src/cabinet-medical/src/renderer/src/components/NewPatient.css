@@ -1,0 +1,237 @@
+/* ── NewPatient form ── */
+
+/* Topbar button variants */
+.np-btn--danger {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  border-color: #fca5a5 !important;
+}
+.np-btn--danger:hover { background: #fecaca !important; }
+
+.np-btn--primary {
+  background: #dcfce7 !important;
+  color: #065f46 !important;
+  border-color: #6ee7b7 !important;
+}
+.np-btn--primary:hover { background: #d1fae5 !important; }
+
+/* ── Form wrapper ── */
+.np-form {
+  padding: calc(12px * var(--ui-scale)) calc(16px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  display: flex;
+  flex-direction: column;
+  gap: calc(5px * var(--ui-scale));
+}
+
+/* ── Row ── */
+.np-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: calc(3px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  min-height: calc(30px * var(--ui-scale));
+}
+
+/* ── Label ── */
+.np-lbl {
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 700;
+  color: #000;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.np-lbl::after { content: ':'; }
+
+/* ── Text input ── */
+.np-inp {
+  height: calc(28px * var(--ui-scale));
+  padding: 0 calc(7px * var(--ui-scale));
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  background: #fff;
+  font-size: calc(14px * var(--ui-scale));
+  font-family: inherit;
+  font-weight: 400;
+  color: #000;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.1s, box-shadow 0.1s;
+}
+.np-inp:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 2px rgba(5,150,105,0.12);
+}
+.np-inp[readonly] {
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: default;
+}
+
+/* Input widths */
+.np-inp--xs   { width: calc(50px  * var(--ui-scale)); }
+.np-inp--sm   { width: calc(110px * var(--ui-scale)); }
+.np-inp--md   { width: calc(170px * var(--ui-scale)); }
+.np-inp--lg   { width: calc(250px * var(--ui-scale)); }
+.np-inp--grow { flex: 1; min-width: calc(80px * var(--ui-scale)); }
+
+/* ── Lookup field (input + ▲▼ button) ── */
+.np-lookup {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.np-lookup .np-inp {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  border-radius: 3px 0 0 3px;
+  border-right: none;
+}
+
+.np-lookup-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: calc(28px * var(--ui-scale));
+  width: calc(18px * var(--ui-scale));
+  padding: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 0 3px 3px 0;
+  background: #e5e7eb;
+  color: #374151;
+  font-size: calc(7px * var(--ui-scale));
+  line-height: 1;
+  gap: 1px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.np-lookup-btn:hover { background: #d1d5db; }
+.np-lookup-btn:focus-visible { outline: none; }
+
+/* Lookup widths (input width + 18px button) */
+.np-lookup--xs   { width: calc(68px  * var(--ui-scale)); }
+.np-lookup--sm   { width: calc(128px * var(--ui-scale)); }
+.np-lookup--md   { width: calc(188px * var(--ui-scale)); }
+.np-lookup--lg   { width: calc(268px * var(--ui-scale)); }
+.np-lookup--grow { flex: 1; min-width: calc(80px * var(--ui-scale)); }
+
+/* ── Badge (repeats the Situation value) ── */
+.np-badge {
+  display: inline-flex;
+  align-items: center;
+  height: calc(28px * var(--ui-scale));
+  padding: 0 calc(10px * var(--ui-scale));
+  background: #dcfce7;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+  border-radius: 3px;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Checkbox ── */
+.np-checkbox {
+  width: calc(18px * var(--ui-scale));
+  height: calc(18px * var(--ui-scale));
+  cursor: pointer;
+  accent-color: #059669;
+  flex-shrink: 0;
+}
+
+/* ── Assigner button ── */
+.np-action-btn {
+  height: calc(28px * var(--ui-scale));
+  padding: 0 calc(12px * var(--ui-scale));
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  background: #f9fafb;
+  color: #000;
+  font-size: calc(13px * var(--ui-scale));
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.1s;
+}
+.np-action-btn:hover:not(:disabled) { background: #e5e7eb; }
+.np-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.np-action-btn:focus-visible { outline: none; }
+
+/* ── Section divider ── */
+.np-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: calc(4px * var(--ui-scale)) 0;
+}
+
+/* ── Auto-notes grey area ── */
+.np-auto-notes {
+  width: 100%;
+  height: calc(60px * var(--ui-scale));
+  padding: calc(6px * var(--ui-scale));
+  background: #e5e7eb;
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: calc(13px * var(--ui-scale));
+  color: #6b7280;
+  resize: none;
+  box-sizing: border-box;
+  cursor: default;
+}
+
+/* ── Médecins / Confier à list rows ── */
+.np-list-row {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(8px * var(--ui-scale));
+}
+
+.np-list-label {
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 700;
+  color: #000;
+  white-space: nowrap;
+  min-width: calc(130px * var(--ui-scale));
+  flex-shrink: 0;
+  padding-top: calc(5px * var(--ui-scale));
+}
+
+.np-list-box {
+  flex: 1;
+  height: calc(72px * var(--ui-scale));
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  background: #f9fafb;
+}
+
+/* ── Remarques ── */
+.np-remarks-row {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(8px * var(--ui-scale));
+}
+
+.np-textarea {
+  flex: 1;
+  height: calc(90px * var(--ui-scale));
+  padding: calc(7px * var(--ui-scale));
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  background: #fff;
+  font-family: inherit;
+  font-size: calc(14px * var(--ui-scale));
+  color: #000;
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+}
+.np-textarea:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 2px rgba(5,150,105,0.12);
+}

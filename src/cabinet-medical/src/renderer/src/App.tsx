@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 import PatientSearch from "./components/PatientSearch";
+import NewPatient from "./components/NewPatient";
 
 type MenuItem = {
   label: string;
@@ -79,8 +80,8 @@ function App() {
       window.close();
       return;
     }
-    if (item.view === "recherche-patient") {
-      setCurrentView("recherche-patient");
+    if (item.view === "recherche-patient" || item.view === "nouveau-patient") {
+      setCurrentView(item.view);
       return;
     }
     alert(`Ouverture: ${item.label}`);
@@ -92,6 +93,10 @@ function App() {
 
   if (currentView === "recherche-patient") {
     return <PatientSearch onBack={() => setCurrentView(null)} />;
+  }
+
+  if (currentView === "nouveau-patient") {
+    return <NewPatient onBack={() => setCurrentView(null)} />;
   }
 
   return (

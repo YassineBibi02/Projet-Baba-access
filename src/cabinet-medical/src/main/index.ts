@@ -8,15 +8,11 @@ const stmtCache = new Map<string, Database.Statement>()
 
 function openDatabase(): void {
   const dbPath = is.dev
-    ? join(app.getAppPath(), 'data/patients.sqlite')
-    : join(process.resourcesPath, 'data/patients.sqlite')
+    ? join(app.getAppPath(), 'data/access_full.sqlite')
+    : join(process.resourcesPath, 'data/access_full.sqlite')
 
   db = new Database(dbPath)
   db.pragma('cache_size = -8000')
-
-  try {
-    db.exec('CREATE INDEX IF NOT EXISTS idx_patients_prenom ON patients (prenom)')
-  } catch { /* non-fatal on OneDrive */ }
 }
 
 function getStmt(sql: string): Database.Statement {
@@ -72,15 +68,15 @@ app.whenReady().then(() => {
     (_event, p: { field: 'nom' | 'prenom' | 'code'; value: string }) => {
       if (!db || !p.value.trim()) return { rows: [], seekIndex: 0 }
       const v = p.value.trim()
-      const cols = 'compteur, nom, prenom, numero_dossier, date_naissance, ville, tel_domicile'
+      const cols = 'compteur, nom, prenom, n_dossier, date_de_naissance, ville, tel_domicile'
 
       if (p.field === 'nom') {
         const q = v.toUpperCase()
         const before = (getStmt(
-          `SELECT ${cols} FROM patients WHERE nom < ? ORDER BY nom DESC, prenom DESC LIMIT 500`
+          `SELECT ${cols} FROM app_patients WHERE nom < ? ORDER BY nom DESC, prenom DESC LIMIT 500`
         ).all(q) as unknown[]).reverse()
         const after = getStmt(
-          `SELECT ${cols} FROM patients WHERE nom >= ? ORDER BY nom, prenom LIMIT 2000`
+          `SELECT ${cols} FROM app_patients WHERE nom >= ? ORDER BY nom, prenom LIMIT 2000`
         ).all(q)
         return { rows: [...before, ...after], seekIndex: before.length }
       }
@@ -88,17 +84,17 @@ app.whenReady().then(() => {
       if (p.field === 'prenom') {
         const q = v.charAt(0).toUpperCase() + v.slice(1)
         const before = (getStmt(
-          `SELECT ${cols} FROM patients WHERE prenom < ? ORDER BY prenom DESC, nom DESC LIMIT 500`
+          `SELECT ${cols} FROM app_patients WHERE prenom < ? ORDER BY prenom DESC, nom DESC LIMIT 500`
         ).all(q) as unknown[]).reverse()
         const after = getStmt(
-          `SELECT ${cols} FROM patients WHERE prenom >= ? ORDER BY prenom, nom LIMIT 2000`
+          `SELECT ${cols} FROM app_patients WHERE prenom >= ? ORDER BY prenom, nom LIMIT 2000`
         ).all(q)
         return { rows: [...before, ...after], seekIndex: before.length }
       }
 
       // code: substring match, no natural seek boundary
       const rows = getStmt(
-        `SELECT ${cols} FROM patients WHERE numero_dossier LIKE ? ORDER BY numero_dossier LIMIT 1000`
+        `SELECT ${cols} FROM app_patients WHERE n_dossier LIKE ? ORDER BY n_dossier LIMIT 1000`
       ).all('%' + v + '%')
       return { rows, seekIndex: 0 }
     }
@@ -106,7 +102,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('patients:get', (_event, compteur: number) => {
     if (!db) return null
-    return getStmt('SELECT * FROM patients WHERE compteur = ?').get(compteur) ?? null
+    return getStmt('SELECT * FROM app_patients WHERE compteur = ?').get(compteur) ?? null
   })
 
   ipcMain.handle('patients:consultations', (_event, compteur: number) => {
@@ -116,8 +112,8 @@ app.whenReady().then(() => {
              c.date_consultation, c.heure_consultation,
              c.remarques_consultations, c.flag_remarques_consultations,
              d.titre_dossier_medical, d.code_dossier_medical
-      FROM consultations c
-      LEFT JOIN dossiers d
+      FROM app_consultations c
+      LEFT JOIN app_dossiers d
         ON d.compteur = c.compteur
         AND d.numero_dossier_medical = c.numero_dossier_medical
       WHERE c.compteur = ?
@@ -128,7 +124,7 @@ app.whenReady().then(() => {
       SELECT compteur_consultation_themes, numero_dossier_medical, numero_consultation,
              titre_theme, contenu_theme, ordre_titre,
              date_theme, heure_theme, flag_examen
-      FROM consultation_themes
+      FROM app_consultation_themes
       WHERE compteur = ?
       ORDER BY compteur_consultation_themes ASC
       LIMIT 5000
