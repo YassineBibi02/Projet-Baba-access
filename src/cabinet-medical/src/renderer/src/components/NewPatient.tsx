@@ -1,6 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, forwardRef } from 'react'
+import DatePicker, { registerLocale } from 'react-datepicker'
+import { fr } from 'date-fns/locale'
+import 'react-datepicker/dist/react-datepicker.css'
 import './PatientSearch.css'
 import './NewPatient.css'
+
+registerLocale('fr', fr)
 
 interface Props { onBack: () => void }
 
@@ -8,7 +13,6 @@ interface Form {
   nom: string
   prenom: string
   nom_jeune_fille: string
-  matricule: string
   numero_dossier: string
   date_naissance: string
   lieu_naissance: string
@@ -43,7 +47,7 @@ function todayFr(): string {
 
 function emptyForm(): Form {
   return {
-    nom: '', prenom: '', nom_jeune_fille: '', matricule: '', numero_dossier: '',
+    nom: '', prenom: '', nom_jeune_fille: '', numero_dossier: '',
     date_naissance: '', lieu_naissance: '', sexe: '', situation_famille: '',
     adresse: '', ville: '', code_ville: '', gouvernorat_pays: '',
     profession: '', employeur: '', activite_employeur: '',
@@ -55,12 +59,109 @@ function emptyForm(): Form {
   }
 }
 
+// Convert DD/MM/YYYY string to Date, or null
+function parseDDMMYYYY(s: string): Date | null {
+  if (!s) return null
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!m) return null
+  const d = new Date(+m[3], +m[2] - 1, +m[1])
+  return isNaN(d.getTime()) ? null : d
+}
+
+function dateToDDMMYYYY(d: Date): string {
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+}
+
+// Convert DD/MM/YYYY → M/D/YYYY (Access date format) for DB storage
+function toAccessDate(s: string): string | null {
+  if (!s.trim()) return null
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!m) return s || null
+  return `${parseInt(m[2])}/${parseInt(m[1])}/${m[3]}`
+}
+
+// ── Date picker input ─────────────────────────────────────────────────────────
+
+// Auto-insert slashes: "31012002" → "31/01/2002"
+function formatDateInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
+// Custom input that owns its own text state so react-datepicker's injected
+// `value` prop is ignored; only `displayText` and `onTextChange` matter.
+interface DateNativeInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  displayText?: string
+  onTextChange?: (v: string) => void
+}
+
+const DateNativeInput = forwardRef<HTMLInputElement, DateNativeInputProps>(
+  function DateNativeInput(
+    { value: _rdp, onChange: _rdpOnChange, displayText = '', onTextChange, ...rest },
+    ref
+  ) {
+    return (
+      <input
+        ref={ref}
+        {...rest}
+        value={displayText}
+        onChange={e => onTextChange?.(formatDateInput(e.target.value))}
+        className="np-inp np-inp--sm"
+        autoComplete="off"
+      />
+    )
+  }
+)
+
+interface DateInputProps { value: string; onChange: (v: string) => void; maxDate?: Date }
+
+function DateInput({ value, onChange, maxDate }: DateInputProps) {
+  const [displayText, setDisplayText] = useState(value)
+
+  // Sync when parent resets the form
+  useEffect(() => { setDisplayText(value) }, [value])
+
+  function handleTextChange(text: string) {
+    setDisplayText(text)
+    const parsed = parseDDMMYYYY(text)
+    onChange(parsed ? dateToDDMMYYYY(parsed) : text)
+  }
+
+  return (
+    <DatePicker
+      locale="fr"
+      dateFormat="dd/MM/yyyy"
+      selected={parseDDMMYYYY(displayText)}
+      onChange={(date: Date | null) => {
+        const formatted = date ? dateToDDMMYYYY(date) : ''
+        setDisplayText(formatted)
+        onChange(formatted)
+      }}
+      placeholderText="jj/mm/aaaa"
+      showYearDropdown
+      scrollableYearDropdown
+      yearDropdownItemNumber={120}
+      showMonthDropdown
+      dropdownMode="select"
+      maxDate={maxDate}
+      customInput={
+        <DateNativeInput displayText={displayText} onTextChange={handleTextChange} />
+      }
+      popperPlacement="bottom-start"
+    />
+  )
+}
+
+// ── Lookup field ──────────────────────────────────────────────────────────────
+
 interface LookupProps {
   value: string
   onChange: (v: string) => void
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'grow'
-  source?: string      // IPC source name for DB autocomplete
-  options?: string[]   // Fixed list filtered in JS
+  source?: string
+  options?: string[]
 }
 
 interface LookupData { vals: string[]; hasAfter: boolean }
@@ -73,7 +174,6 @@ function Lookup({ value, onChange, size = 'md', source, options: fixedOpts }: Lo
   const loadingRef = useRef(false)
   const hasLookup = !!(source || fixedOpts)
 
-  // Fetch from DB when opened or value changes
   useEffect(() => {
     if (!open || !source) return
     let alive = true
@@ -83,10 +183,8 @@ function Lookup({ value, onChange, size = 'md', source, options: fixedOpts }: Lo
     return () => { alive = false }
   }, [open, value, source])
 
-  // Reset data when closed
   useEffect(() => { if (!open) setData(EMPTY_LD) }, [open])
 
-  // Click outside to close
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
@@ -157,11 +255,96 @@ function Lookup({ value, onChange, size = 'md', source, options: fixedOpts }: Lo
   )
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function NewPatient({ onBack }: Props) {
   const [form, setForm] = useState<Form>(emptyForm())
+  const [saving, setSaving] = useState(false)
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+
+  // Auto-assign next dossier number on mount
+  useEffect(() => {
+    window.api.getNextDossier().then(code => {
+      if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
+    })
+  }, [])
 
   function set<K extends keyof Form>(field: K, value: Form[K]) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function handleSave() {
+    if (!form.nom.trim() && !form.prenom.trim()) {
+      setFeedback({ type: 'error', msg: 'Le nom ou le prénom est requis.' })
+      return
+    }
+
+    if (form.date_naissance) {
+      const dob = parseDDMMYYYY(form.date_naissance)
+      if (!dob) {
+        setFeedback({ type: 'error', msg: 'Date de naissance invalide (format attendu : jj/mm/aaaa).' })
+        return
+      }
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      if (dob > today) {
+        setFeedback({ type: 'error', msg: 'La date de naissance ne peut pas être dans le futur.' })
+        return
+      }
+      const limit = new Date(); limit.setFullYear(limit.getFullYear() - 120)
+      if (dob < limit) {
+        setFeedback({ type: 'error', msg: 'La date de naissance ne peut pas dépasser 120 ans.' })
+        return
+      }
+    }
+    setSaving(true)
+    setFeedback(null)
+    try {
+      const data: Record<string, string | number | null> = {
+        nom:                    form.nom.trim() || null,
+        nom_jeune_fille:        form.nom_jeune_fille.trim() || null,
+        prenom:                 form.prenom.trim() || null,
+        n_dossier:              form.numero_dossier.trim() || null,
+        date_de_naissance:      toAccessDate(form.date_naissance),
+        lieu_de_naissance:      form.lieu_naissance.trim() || null,
+        sexe:                   form.sexe.trim() || null,
+        situation_de_famille:   form.situation_famille.trim() || null,
+        adresse:                form.adresse.trim() || null,
+        ville:                  form.ville.trim() || null,
+        code_ville:             form.code_ville.trim() || null,
+        gouvernorat_ou_pays:    form.gouvernorat_pays.trim() || null,
+        profession:             form.profession.trim() || null,
+        employeur:              form.employeur.trim() || null,
+        activite_employeur:     form.activite_employeur.trim() || null,
+        adresse_profession:     form.adresse_profession.trim() || null,
+        ville_profession:       form.ville_profession.trim() || null,
+        code_ville_profession:  form.code_ville_profession.trim() || null,
+        tel_bureau:             form.tel_bureau.trim() || null,
+        tel_domicile:           form.tel_domicile.trim() || null,
+        proche:                 form.proche.trim() || null,
+        tel_proche:             form.tel_proche.trim() || null,
+        n_affiliation:          form.numero_affiliation.trim() || null,
+        statut:                 form.statut.trim() || null,
+        couverture_sociale:     form.couverture_sociale.trim() || null,
+        date_1ere_consultation: toAccessDate(form.date_premiere_consultation),
+        notesstate:             form.notes_state ? 1 : 0,
+        remarques:              form.remarques.trim() || null,
+      }
+
+      const result = await window.api.createPatient(data)
+      if (result.ok) {
+        setFeedback({ type: 'success', msg: `Patient enregistré (n° ${result.compteur}).` })
+        // Reset form and fetch next dossier
+        const newForm = emptyForm()
+        setForm(newForm)
+        window.api.getNextDossier().then(code => {
+          if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
+        })
+      } else {
+        setFeedback({ type: 'error', msg: `Erreur : ${result.error}` })
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -172,11 +355,23 @@ export default function NewPatient({ onBack }: Props) {
         <div className="ps-topbar-inner">
           <h1 className="ps-title">Fiche administrative</h1>
           <div className="ps-topbar-btns">
-            <button className="ps-btn" onClick={() => setForm(emptyForm())}>Nouvelle fiche</button>
+            <button className="ps-btn" onClick={() => {
+              setForm(emptyForm())
+              setFeedback(null)
+              window.api.getNextDossier().then(code => {
+                if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
+              })
+            }}>Nouvelle fiche</button>
             <button className="ps-btn" disabled>Imprimer</button>
             <button className="ps-btn" onClick={onBack}>Menu général</button>
             <button className="ps-btn np-btn--danger" disabled>Supprimer</button>
-            <button className="ps-btn np-btn--primary" disabled>Enregistrer</button>
+            <button
+              className="ps-btn np-btn--primary"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
           </div>
         </div>
       </div>
@@ -186,40 +381,46 @@ export default function NewPatient({ onBack }: Props) {
         <div className="ps-card">
           <div className="np-form">
 
-            {/* Row 1 — Nom / Matricule */}
+            {/* Feedback banner */}
+            {feedback && (
+              <div className={`np-feedback np-feedback--${feedback.type}`}>
+                {feedback.msg}
+                <button className="np-feedback-close" onClick={() => setFeedback(null)}>×</button>
+              </div>
+            )}
+
+            {/* Row 1 — Nom */}
             <div className="np-row">
               <span className="np-lbl">Nom</span>
               <input className="np-inp np-inp--grow" value={form.nom}
-                onChange={e => set('nom', e.target.value)} autoComplete="off" />
-              <span className="np-lbl">Matricule (Réf. interne)</span>
-              <input className="np-inp np-inp--md" value={form.matricule}
-                onChange={e => set('matricule', e.target.value)} autoComplete="off" />
+                onChange={e => set('nom', e.target.value.toUpperCase())} autoComplete="off" />
             </div>
 
-            {/* Row 2 — Prénom / Code dossier */}
+            {/* Row 2 — Prénom / Code dossier (auto-assigned, editable) */}
             <div className="np-row">
               <span className="np-lbl">Prénom</span>
               <input className="np-inp np-inp--grow" value={form.prenom}
-                onChange={e => set('prenom', e.target.value)} autoComplete="off" />
+                onChange={e => set('prenom', e.target.value.toUpperCase())} autoComplete="off" />
               <span className="np-lbl">Code (dossier)</span>
               <input className="np-inp np-inp--sm" value={form.numero_dossier}
                 onChange={e => set('numero_dossier', e.target.value)} autoComplete="off" />
-              <button type="button" className="np-action-btn" disabled>Assigner</button>
             </div>
 
             {/* Row 3 — Nom jeune fille */}
             <div className="np-row">
               <span className="np-lbl">Nom j. fille</span>
               <input className="np-inp np-inp--lg" value={form.nom_jeune_fille}
-                onChange={e => set('nom_jeune_fille', e.target.value)} autoComplete="off" />
+                onChange={e => set('nom_jeune_fille', e.target.value.toUpperCase())} autoComplete="off" />
             </div>
 
             {/* Row 4 — Naissance / Lieu / Sexe / Situation */}
             <div className="np-row">
               <span className="np-lbl">Né(e) le</span>
-              <input className="np-inp np-inp--sm" value={form.date_naissance}
-                onChange={e => set('date_naissance', e.target.value)}
-                placeholder="jj/mm/aaaa" autoComplete="off" />
+              <DateInput
+                value={form.date_naissance}
+                onChange={v => set('date_naissance', v)}
+                maxDate={new Date()}
+              />
               <span className="np-lbl">Lieu</span>
               <Lookup size="sm" source="lieu_naissance" value={form.lieu_naissance} onChange={v => set('lieu_naissance', v)} />
               <span className="np-lbl">Sexe</span>

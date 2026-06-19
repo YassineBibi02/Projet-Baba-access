@@ -12,7 +12,9 @@ const api = {
   getPatient: (compteur: number) => ipcRenderer.invoke('patients:get', compteur),
   getConsultations: (compteur: number) => ipcRenderer.invoke('patients:consultations', compteur),
   lookupSearch: (p: { source: string; value: string }) => ipcRenderer.invoke('lookup:search', p),
-  lookupLoadMore: (p: { source: string; value: string; anchor: string }) => ipcRenderer.invoke('lookup:load-more', p)
+  lookupLoadMore: (p: { source: string; value: string; anchor: string }) => ipcRenderer.invoke('lookup:load-more', p),
+  getNextDossier: () => ipcRenderer.invoke('patients:next-dossier'),
+  createPatient: (data: Record<string, string | number | null>) => ipcRenderer.invoke('patients:create', data)
 }
 
 if (process.contextIsolated) {

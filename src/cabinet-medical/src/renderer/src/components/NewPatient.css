@@ -1,5 +1,96 @@
 /* ── NewPatient form ── */
 
+/* ── Feedback banner ── */
+.np-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  border-radius: 4px;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 600;
+}
+.np-feedback--success {
+  background: #dcfce7;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+.np-feedback--error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.np-feedback-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: calc(16px * var(--ui-scale));
+  color: inherit;
+  padding: 0 calc(4px * var(--ui-scale));
+  line-height: 1;
+  opacity: 0.7;
+}
+.np-feedback-close:hover { opacity: 1; }
+
+/* ── react-datepicker overrides ── */
+.react-datepicker-wrapper {
+  display: inline-block;
+  flex-shrink: 0;
+}
+.react-datepicker-popper {
+  z-index: 400 !important;
+}
+.react-datepicker {
+  font-family: inherit !important;
+  font-size: calc(12px * var(--ui-scale)) !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.14) !important;
+}
+.react-datepicker__header {
+  background: #f0fdf4 !important;
+  border-bottom: 1px solid #d1d5db !important;
+  border-radius: 6px 6px 0 0 !important;
+  padding-top: calc(8px * var(--ui-scale)) !important;
+}
+.react-datepicker__current-month {
+  color: #065f46 !important;
+  font-size: calc(13px * var(--ui-scale)) !important;
+}
+.react-datepicker__day-name {
+  color: #6b7280 !important;
+  font-size: calc(11px * var(--ui-scale)) !important;
+}
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background: #059669 !important;
+  border-radius: 4px !important;
+  color: #fff !important;
+}
+.react-datepicker__day:hover {
+  background: #d1fae5 !important;
+  border-radius: 4px !important;
+  color: #065f46 !important;
+}
+.react-datepicker__day--today {
+  font-weight: 700;
+  color: #059669;
+}
+.react-datepicker__navigation-icon::before {
+  border-color: #065f46 !important;
+}
+.react-datepicker__year-select,
+.react-datepicker__month-select {
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: calc(12px * var(--ui-scale));
+  color: #111;
+  background: #fff;
+  cursor: pointer;
+}
+
+
 /* Topbar button variants */
 .np-btn--danger {
   background: #fee2e2 !important;

@@ -65,8 +65,8 @@ app.whenReady().then(() => {
 
   // Helpers — sort keys using TRIM so leading-space entries sort with their letter group.
   // All ORDER BY / WHERE clauses use the same expression for consistency.
-  const SN  = "TRIM(COALESCE(nom,''))"
-  const SP  = "TRIM(COALESCE(prenom,''))"
+  const SN  = "UPPER(TRIM(COALESCE(nom,'')))"
+  const SP  = "UPPER(TRIM(COALESCE(prenom,'')))"
   const SND = "TRIM(COALESCE(n_dossier,''))"
 
   // patients:search
@@ -304,6 +304,56 @@ app.whenReady().then(() => {
       LIMIT 5000
     `).all(compteur)
     return { consultations, themes }
+  })
+
+  // patients:next-dossier — read the last patient's n_dossier, increment its leading number
+  ipcMain.handle('patients:next-dossier', () => {
+    if (!db) return ''
+    const row = db
+      .prepare(
+        `SELECT n_dossier FROM app_patients WHERE n_dossier IS NOT NULL AND TRIM(n_dossier) != '' ORDER BY compteur DESC LIMIT 1`
+      )
+      .get() as { n_dossier: string } | undefined
+    if (!row?.n_dossier) return '1'
+    const match = row.n_dossier.trim().match(/^(\d+)(.*)$/)
+    if (!match) return row.n_dossier
+    return String(parseInt(match[1], 10) + 1) + match[2]
+  })
+
+  // patients:create — insert into the raw source table (app_patients is a read-only view)
+  // compteur is stored as TEXT in raw_t_fiche_administrative; derive next value via CAST
+  ipcMain.handle('patients:create', (_event, data: Record<string, string | number | null>) => {
+    if (!db) return { ok: false, error: 'No database' }
+    try {
+      const maxRow = db
+        .prepare('SELECT MAX(CAST(compteur AS INTEGER)) AS max_c FROM raw_t_fiche_administrative')
+        .get() as { max_c: number | null }
+      const nextCompteur = (maxRow.max_c ?? 0) + 1
+      db.prepare(`
+        INSERT INTO raw_t_fiche_administrative (
+          compteur, nom, nom_jeune_fille, prenom, n_dossier,
+          date_de_naissance, lieu_de_naissance, sexe, situation_de_famille,
+          adresse, ville, code_ville, gouvernorat_ou_pays,
+          profession, employeur, activite_employeur,
+          adresse_profession, ville_profession, code_ville_profession,
+          tel_bureau, tel_domicile, proche, tel_proche,
+          n_affiliation, statut, couverture_sociale,
+          date_1ere_consultation, notesstate, remarques
+        ) VALUES (
+          @compteur, @nom, @nom_jeune_fille, @prenom, @n_dossier,
+          @date_de_naissance, @lieu_de_naissance, @sexe, @situation_de_famille,
+          @adresse, @ville, @code_ville, @gouvernorat_ou_pays,
+          @profession, @employeur, @activite_employeur,
+          @adresse_profession, @ville_profession, @code_ville_profession,
+          @tel_bureau, @tel_domicile, @proche, @tel_proche,
+          @n_affiliation, @statut, @couverture_sociale,
+          @date_1ere_consultation, @notesstate, @remarques
+        )
+      `).run({ compteur: String(nextCompteur), ...data })
+      return { ok: true, compteur: nextCompteur }
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) }
+    }
   })
 
   createWindow()
