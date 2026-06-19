@@ -84,7 +84,7 @@ interface ConsultData {
   themes: ThemeRow[]
 }
 
-interface Props { onBack: () => void }
+interface Props { onBack: () => void; onOpenAdmin?: (compteur: number) => void }
 
 const ROW_H_BASE = 36
 const VISIBLE_ROWS = 13
@@ -429,7 +429,7 @@ function ConsultationList({ consultations, themes }: ConsultData) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function PatientSearch({ onBack }: Props) {
+export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
   const [nom, setNom]       = useState('')
   const [prenom, setPrenom] = useState('')
   const [code, setCode]     = useState('')
@@ -753,7 +753,11 @@ export default function PatientSearch({ onBack }: Props) {
       <div className="ps-footer">
         <div className="ps-footer-inner">
           <div className="ps-footer-row-fill">
-            <button className="ps-footer-btn" disabled>Administrative</button>
+            <button
+              className="ps-footer-btn ps-footer-btn--active"
+              disabled={!patient}
+              onClick={() => patient && onOpenAdmin?.(patient.compteur)}
+            >Administrative</button>
             <button className="ps-footer-btn" disabled>Visu Dossier</button>
             <button className="ps-footer-btn" disabled>Consultation Zoom</button>
             <button className="ps-footer-btn" disabled>Ordonnance</button>

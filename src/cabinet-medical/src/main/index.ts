@@ -340,6 +340,30 @@ app.whenReady().then(() => {
     return String(parseInt(match[1], 10) + 1) + match[2]
   })
 
+  // patients:update — update an existing record by compteur
+  ipcMain.handle('patients:update', (_event, compteur: number, data: Record<string, string | number | null>) => {
+    if (!db) return { ok: false, error: 'No database' }
+    try {
+      db.prepare(`
+        UPDATE raw_t_fiche_administrative SET
+          nom = @nom, nom_jeune_fille = @nom_jeune_fille, prenom = @prenom, n_dossier = @n_dossier,
+          date_de_naissance = @date_de_naissance, lieu_de_naissance = @lieu_de_naissance,
+          sexe = @sexe, situation_de_famille = @situation_de_famille,
+          adresse = @adresse, ville = @ville, code_ville = @code_ville, gouvernorat_ou_pays = @gouvernorat_ou_pays,
+          profession = @profession, employeur = @employeur, activite_employeur = @activite_employeur,
+          adresse_profession = @adresse_profession, ville_profession = @ville_profession,
+          code_ville_profession = @code_ville_profession,
+          tel_bureau = @tel_bureau, tel_domicile = @tel_domicile, proche = @proche, tel_proche = @tel_proche,
+          n_affiliation = @n_affiliation, statut = @statut, couverture_sociale = @couverture_sociale,
+          date_1ere_consultation = @date_1ere_consultation, notesstate = @notesstate, remarques = @remarques
+        WHERE CAST(compteur AS INTEGER) = @cpt
+      `).run({ cpt: compteur, ...data })
+      return { ok: true }
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) }
+    }
+  })
+
   // patients:create — insert into the raw source table (app_patients is a read-only view)
   // compteur is stored as TEXT in raw_t_fiche_administrative; derive next value via CAST
   ipcMain.handle('patients:create', (_event, data: Record<string, string | number | null>) => {

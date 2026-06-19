@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, forwardRef } from 'react'
+import type { PatientFull } from '../../../preload/index.d'
 import { createPortal } from 'react-dom'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import { fr } from 'date-fns/locale'
@@ -8,7 +9,7 @@ import './NewPatient.css'
 
 registerLocale('fr', fr)
 
-interface Props { onBack: () => void }
+interface Props { onBack: () => void; editCompteur?: number | null }
 
 interface Form {
   nom: string
@@ -79,6 +80,47 @@ function toAccessDate(s: string): string | null {
   const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
   if (!m) return s || null
   return `${parseInt(m[2])}/${parseInt(m[1])}/${m[3]}`
+}
+
+// Convert Access M/D/YYYY → DD/MM/YYYY for display
+function fromAccessDate(raw: string | null): string {
+  if (!raw) return ''
+  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (!m) return ''
+  return `${String(+m[2]).padStart(2,'0')}/${String(+m[1]).padStart(2,'0')}/${m[3]}`
+}
+
+function patientToForm(p: PatientFull): Form {
+  return {
+    nom:                      p.nom ?? '',
+    prenom:                   p.prenom ?? '',
+    nom_jeune_fille:          p.nom_jeune_fille ?? '',
+    numero_dossier:           p.n_dossier ?? '',
+    date_naissance:           fromAccessDate(p.date_de_naissance),
+    lieu_naissance:           p.lieu_de_naissance ?? '',
+    sexe:                     p.sexe ?? '',
+    situation_famille:        p.situation_de_famille ?? '',
+    adresse:                  p.adresse ?? '',
+    ville:                    p.ville ?? '',
+    code_ville:               p.code_ville ?? '',
+    gouvernorat_pays:         p.gouvernorat_ou_pays ?? '',
+    profession:               p.profession ?? '',
+    employeur:                p.employeur ?? '',
+    activite_employeur:       p.activite_employeur ?? '',
+    adresse_profession:       p.adresse_profession ?? '',
+    ville_profession:         p.ville_profession ?? '',
+    code_ville_profession:    p.code_ville_profession ?? '',
+    tel_domicile:             p.tel_domicile ?? '',
+    tel_bureau:               p.tel_bureau ?? '',
+    proche:                   p.proche ?? '',
+    tel_proche:               p.tel_proche ?? '',
+    date_premiere_consultation: fromAccessDate(p.date_1ere_consultation),
+    statut:                   p.statut ?? '',
+    couverture_sociale:       p.couverture_sociale ?? '',
+    numero_affiliation:       p.n_affiliation ?? '',
+    remarques:                p.remarques ?? '',
+    notes_state:              Number(p.notesstate) === 1,
+  }
 }
 
 // ── Date picker input ─────────────────────────────────────────────────────────
@@ -265,17 +307,22 @@ function Lookup({ value, onChange, size = 'md', source, options: fixedOpts }: Lo
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function NewPatient({ onBack }: Props) {
+export default function NewPatient({ onBack, editCompteur }: Props) {
   const [form, setForm] = useState<Form>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
-  // Auto-assign next dossier number on mount
   useEffect(() => {
-    window.api.getNextDossier().then(code => {
-      if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
-    })
-  }, [])
+    if (editCompteur) {
+      window.api.getPatient(editCompteur).then(p => {
+        if (p) setForm(patientToForm(p))
+      })
+    } else {
+      window.api.getNextDossier().then(code => {
+        if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
+      })
+    }
+  }, [editCompteur])
 
   function set<K extends keyof Form>(field: K, value: Form[K]) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -338,15 +385,21 @@ export default function NewPatient({ onBack }: Props) {
         remarques:              form.remarques.trim() || null,
       }
 
-      const result = await window.api.createPatient(data)
+      const result = editCompteur
+        ? await window.api.updatePatient(editCompteur, data)
+        : await window.api.createPatient(data)
+
       if (result.ok) {
-        setFeedback({ type: 'success', msg: `Patient enregistré (n° ${result.compteur}).` })
-        // Reset form and fetch next dossier
-        const newForm = emptyForm()
-        setForm(newForm)
-        window.api.getNextDossier().then(code => {
-          if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
-        })
+        if (editCompteur) {
+          setFeedback({ type: 'success', msg: 'Fiche mise à jour.' })
+        } else {
+          setFeedback({ type: 'success', msg: `Patient enregistré (n° ${'compteur' in result ? result.compteur : ''}).` })
+          const newForm = emptyForm()
+          setForm(newForm)
+          window.api.getNextDossier().then(code => {
+            if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
+          })
+        }
       } else {
         setFeedback({ type: 'error', msg: `Erreur : ${result.error}` })
       }
@@ -361,15 +414,17 @@ export default function NewPatient({ onBack }: Props) {
       {/* ── Top bar ── */}
       <div className="ps-topbar">
         <div className="ps-topbar-inner">
-          <h1 className="ps-title">Fiche administrative</h1>
+          <h1 className="ps-title">{editCompteur ? 'Édition fiche administrative' : 'Fiche administrative'}</h1>
           <div className="ps-topbar-btns">
-            <button className="ps-btn" onClick={() => {
-              setForm(emptyForm())
-              setFeedback(null)
-              window.api.getNextDossier().then(code => {
-                if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
-              })
-            }}>Nouvelle fiche</button>
+            {!editCompteur && (
+              <button className="ps-btn" onClick={() => {
+                setForm(emptyForm())
+                setFeedback(null)
+                window.api.getNextDossier().then(code => {
+                  if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
+                })
+              }}>Nouvelle fiche</button>
+            )}
             <button className="ps-btn" disabled>Imprimer</button>
             <button className="ps-btn" onClick={onBack}>Menu général</button>
             <button className="ps-btn np-btn--danger" disabled>Supprimer</button>
@@ -378,7 +433,7 @@ export default function NewPatient({ onBack }: Props) {
               onClick={handleSave}
               disabled={saving}
             >
-              {saving ? 'Enregistrement…' : 'Enregistrer'}
+              {saving ? 'Enregistrement…' : editCompteur ? 'Mettre à jour' : 'Enregistrer'}
             </button>
           </div>
         </div>

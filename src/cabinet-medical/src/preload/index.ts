@@ -14,6 +14,8 @@ const api = {
   lookupSearch: (p: { source: string; value: string }) => ipcRenderer.invoke('lookup:search', p),
   lookupLoadMore: (p: { source: string; value: string; anchor: string }) => ipcRenderer.invoke('lookup:load-more', p),
   getNextDossier: () => ipcRenderer.invoke('patients:next-dossier'),
+  updatePatient: (compteur: number, data: Record<string, string | number | null>) =>
+    ipcRenderer.invoke('patients:update', compteur, data),
   createPatient: (data: Record<string, string | number | null>) => ipcRenderer.invoke('patients:create', data)
 }
 
