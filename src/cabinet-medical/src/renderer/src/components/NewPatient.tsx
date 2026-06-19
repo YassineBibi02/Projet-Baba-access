@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, forwardRef } from 'react'
+import { createPortal } from 'react-dom'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import { fr } from 'date-fns/locale'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -82,6 +83,11 @@ function toAccessDate(s: string): string | null {
 
 // ── Date picker input ─────────────────────────────────────────────────────────
 
+// Renders the calendar popup in document.body so it never affects flex layout
+function CalendarPortal({ children }: { children?: React.ReactNode }) {
+  return createPortal(children ?? null, document.body)
+}
+
 // Auto-insert slashes: "31012002" → "31/01/2002"
 function formatDateInput(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8)
@@ -150,6 +156,8 @@ function DateInput({ value, onChange, maxDate }: DateInputProps) {
         <DateNativeInput displayText={displayText} onTextChange={handleTextChange} />
       }
       popperPlacement="bottom-start"
+      popperProps={{ strategy: 'fixed' }}
+      popperContainer={CalendarPortal}
     />
   )
 }
@@ -159,7 +167,7 @@ function DateInput({ value, onChange, maxDate }: DateInputProps) {
 interface LookupProps {
   value: string
   onChange: (v: string) => void
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'grow'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'half' | 'grow'
   source?: string
   options?: string[]
 }
@@ -381,7 +389,6 @@ export default function NewPatient({ onBack }: Props) {
         <div className="ps-card">
           <div className="np-form">
 
-            {/* Feedback banner */}
             {feedback && (
               <div className={`np-feedback np-feedback--${feedback.type}`}>
                 {feedback.msg}
@@ -389,155 +396,185 @@ export default function NewPatient({ onBack }: Props) {
               </div>
             )}
 
-            {/* Row 1 — Nom */}
-            <div className="np-row">
-              <span className="np-lbl">Nom</span>
-              <input className="np-inp np-inp--grow" value={form.nom}
-                onChange={e => set('nom', e.target.value.toUpperCase())} autoComplete="off" />
+            {/* ── IDENTITÉ ── */}
+            <div className="np-section">
+              <div className="np-section-head">Identité</div>
+              <div className="np-section-body">
+
+                <div className="np-row">
+                  <span className="np-lbl">Nom</span>
+                  <div className="np-inline">
+                    <input className="np-inp np-inp--half" value={form.nom}
+                      onChange={e => set('nom', e.target.value.toUpperCase())} autoComplete="off" />
+                    <span className="np-lbl2 np-lbl2--align">Code dossier</span>
+                    <input className="np-inp np-inp--sm" value={form.numero_dossier}
+                      onChange={e => set('numero_dossier', e.target.value)} autoComplete="off" />
+                  </div>
+                </div>
+
+                <div className="np-row">
+                  <span className="np-lbl">Prénom</span>
+                  <div className="np-inline">
+                    <input className="np-inp np-inp--half" value={form.prenom}
+                      onChange={e => set('prenom', e.target.value.toUpperCase())} autoComplete="off" />
+                    <span className="np-lbl2 np-lbl2--align">Sexe</span>
+                    <Lookup size="xs" source="sexe" value={form.sexe} onChange={v => set('sexe', v)} />
+                  </div>
+                </div>
+
+                <div className="np-row">
+                  <span className="np-lbl">Nom j. fille</span>
+                  <div className="np-inline">
+                    <input className="np-inp np-inp--half" value={form.nom_jeune_fille}
+                      onChange={e => set('nom_jeune_fille', e.target.value.toUpperCase())} autoComplete="off" />
+                    <span className="np-lbl2 np-lbl2--align">Situation</span>
+                    <Lookup size="md" source="situation_famille" value={form.situation_famille} onChange={v => set('situation_famille', v)} />
+                    {form.situation_famille && <span className="np-badge">{form.situation_famille}</span>}
+                  </div>
+                </div>
+
+                <div className="np-row">
+                  <span className="np-lbl">Né(e) le</span>
+                  <div className="np-inline">
+                    <DateInput value={form.date_naissance} onChange={v => set('date_naissance', v)} maxDate={new Date()} />
+                    <span className="np-lbl2">Lieu</span>
+                    <Lookup size="md" source="lieu_naissance" value={form.lieu_naissance} onChange={v => set('lieu_naissance', v)} />
+                  </div>
+                </div>
+
+              </div>
             </div>
 
-            {/* Row 2 — Prénom / Code dossier (auto-assigned, editable) */}
-            <div className="np-row">
-              <span className="np-lbl">Prénom</span>
-              <input className="np-inp np-inp--grow" value={form.prenom}
-                onChange={e => set('prenom', e.target.value.toUpperCase())} autoComplete="off" />
-              <span className="np-lbl">Code (dossier)</span>
-              <input className="np-inp np-inp--sm" value={form.numero_dossier}
-                onChange={e => set('numero_dossier', e.target.value)} autoComplete="off" />
+            {/* ── ADRESSE ── */}
+            <div className="np-section">
+              <div className="np-section-head">Adresse</div>
+              <div className="np-section-body">
+
+                <div className="np-row">
+                  <span className="np-lbl">Adresse</span>
+                  <div className="np-inline">
+                    <Lookup size="grow" source="adresse" value={form.adresse} onChange={v => set('adresse', v)} />
+                    <span className="np-lbl2">Ville</span>
+                    <Lookup size="md" source="ville" value={form.ville} onChange={v => set('ville', v)} />
+                    <Lookup size="sm" source="code_ville" value={form.code_ville} onChange={v => set('code_ville', v)} />
+                    <span className="np-lbl2">Gouv./pays</span>
+                    <Lookup size="sm" source="gouvernorat" value={form.gouvernorat_pays} onChange={v => set('gouvernorat_pays', v)} />
+                  </div>
+                </div>
+
+              </div>
             </div>
 
-            {/* Row 3 — Nom jeune fille */}
-            <div className="np-row">
-              <span className="np-lbl">Nom j. fille</span>
-              <input className="np-inp np-inp--lg" value={form.nom_jeune_fille}
-                onChange={e => set('nom_jeune_fille', e.target.value.toUpperCase())} autoComplete="off" />
+            {/* ── ACTIVITÉ PROFESSIONNELLE ── */}
+            <div className="np-section">
+              <div className="np-section-head">Activité professionnelle</div>
+              <div className="np-section-body">
+
+                <div className="np-row">
+                  <span className="np-lbl">Profession</span>
+                  <div className="np-inline">
+                    <Lookup size="grow" source="profession" value={form.profession} onChange={v => set('profession', v)} />
+                    <span className="np-lbl2">Employeur</span>
+                    <Lookup size="grow" source="employeur" value={form.employeur} onChange={v => set('employeur', v)} />
+                  </div>
+                </div>
+
+                <div className="np-row">
+                  <span className="np-lbl">Activité</span>
+                  <Lookup size="grow" source="activite_employeur" value={form.activite_employeur} onChange={v => set('activite_employeur', v)} />
+                </div>
+
+                <div className="np-row">
+                  <span className="np-lbl">Adresse pro</span>
+                  <div className="np-inline">
+                    <Lookup size="grow" source="adresse_prof" value={form.adresse_profession} onChange={v => set('adresse_profession', v)} />
+                    <span className="np-lbl2">Ville</span>
+                    <Lookup size="md" source="ville_prof" value={form.ville_profession} onChange={v => set('ville_profession', v)} />
+                    <Lookup size="sm" source="code_ville_prof" value={form.code_ville_profession} onChange={v => set('code_ville_profession', v)} />
+                  </div>
+                </div>
+
+              </div>
             </div>
 
-            {/* Row 4 — Naissance / Lieu / Sexe / Situation */}
-            <div className="np-row">
-              <span className="np-lbl">Né(e) le</span>
-              <DateInput
-                value={form.date_naissance}
-                onChange={v => set('date_naissance', v)}
-                maxDate={new Date()}
-              />
-              <span className="np-lbl">Lieu</span>
-              <Lookup size="sm" source="lieu_naissance" value={form.lieu_naissance} onChange={v => set('lieu_naissance', v)} />
-              <span className="np-lbl">Sexe</span>
-              <Lookup size="xs" source="sexe" value={form.sexe} onChange={v => set('sexe', v)} />
-              <span className="np-lbl">Situation</span>
-              <Lookup size="md" source="situation_famille" value={form.situation_famille} onChange={v => set('situation_famille', v)} />
-              {form.situation_famille && (
-                <span className="np-badge">{form.situation_famille}</span>
-              )}
+            {/* ── CONTACT ── */}
+            <div className="np-section">
+              <div className="np-section-head">Contact</div>
+              <div className="np-section-body">
+
+                <div className="np-row">
+                  <span className="np-lbl">Tél domicile</span>
+                  <div className="np-inline">
+                    <input className="np-inp np-inp--md" value={form.tel_domicile}
+                      onChange={e => set('tel_domicile', e.target.value)} autoComplete="off" />
+                    <span className="np-lbl2">Tél bureau</span>
+                    <input className="np-inp np-inp--md" value={form.tel_bureau}
+                      onChange={e => set('tel_bureau', e.target.value)} autoComplete="off" />
+                    <span className="np-lbl2">Proche</span>
+                    <Lookup size="md" source="proche" value={form.proche} onChange={v => set('proche', v)} />
+                    <span className="np-lbl2">Tél proche</span>
+                    <input className="np-inp np-inp--md" value={form.tel_proche}
+                      onChange={e => set('tel_proche', e.target.value)} autoComplete="off" />
+                  </div>
+                </div>
+
+              </div>
             </div>
 
-            <div className="np-divider" />
+            {/* ── SUIVI MÉDICAL ── */}
+            <div className="np-section">
+              <div className="np-section-head">Suivi médical</div>
+              <div className="np-section-body">
 
-            {/* Row 5 — Adresse / Ville / Code ville */}
-            <div className="np-row">
-              <span className="np-lbl">Adresse</span>
-              <Lookup size="grow" source="adresse" value={form.adresse} onChange={v => set('adresse', v)} />
-              <span className="np-lbl">Ville</span>
-              <Lookup size="md" source="ville" value={form.ville} onChange={v => set('ville', v)} />
-              <Lookup size="sm" source="code_ville" value={form.code_ville} onChange={v => set('code_ville', v)} />
-            </div>
+                <div className="np-row">
+                  <span className="np-lbl">1ère consult</span>
+                  <div className="np-inline">
+                    <input className="np-inp np-inp--sm" value={form.date_premiere_consultation}
+                      onChange={e => set('date_premiere_consultation', e.target.value)} autoComplete="off" />
+                    <span className="np-lbl2">Dernière</span>
+                    <input className="np-inp np-inp--sm" value="" readOnly />
+                    <span className="np-lbl2">Solde</span>
+                    <input className="np-inp np-inp--sm" value="" readOnly />
+                    <span className="np-lbl2">Statut</span>
+                    <Lookup size="md" source="statut" value={form.statut} onChange={v => set('statut', v)} />
+                    <span className="np-lbl2">Fiche notes</span>
+                    <input type="checkbox" className="np-checkbox" checked={form.notes_state}
+                      onChange={e => set('notes_state', e.target.checked)} />
+                  </div>
+                </div>
 
-            {/* Row 6 — Gouv/pays / Profession */}
-            <div className="np-row">
-              <span className="np-lbl">Gouv./pays</span>
-              <Lookup size="md" source="gouvernorat" value={form.gouvernorat_pays} onChange={v => set('gouvernorat_pays', v)} />
-              <span className="np-lbl">Profession</span>
-              <Lookup size="grow" source="profession" value={form.profession} onChange={v => set('profession', v)} />
-            </div>
+                <div className="np-row">
+                  <span className="np-lbl">Assurance</span>
+                  <div className="np-inline">
+                    <Lookup size="grow" value={form.couverture_sociale} onChange={v => set('couverture_sociale', v)} />
+                    <span className="np-lbl2">N° affiliation</span>
+                    <input className="np-inp np-inp--md" value={form.numero_affiliation}
+                      onChange={e => set('numero_affiliation', e.target.value)} autoComplete="off" />
+                  </div>
+                </div>
 
-            <div className="np-divider" />
+                <div className="np-row">
+                  <span className="np-lbl">Médecins</span>
+                  <input className="np-inp" value="" readOnly />
+                </div>
 
-            {/* Row 7 — Employeur / Activité */}
-            <div className="np-row">
-              <span className="np-lbl">Employeur</span>
-              <Lookup size="grow" source="employeur" value={form.employeur} onChange={v => set('employeur', v)} />
-              <span className="np-lbl">Activité</span>
-              <Lookup size="grow" source="activite_employeur" value={form.activite_employeur} onChange={v => set('activite_employeur', v)} />
-            </div>
+                <div className="np-row">
+                  <span className="np-lbl">Confier à</span>
+                  <input className="np-inp" value="" readOnly />
+                </div>
 
-            {/* Row 8 — Adresse pro / Ville pro */}
-            <div className="np-row">
-              <span className="np-lbl">Adresse</span>
-              <Lookup size="grow" source="adresse_prof" value={form.adresse_profession} onChange={v => set('adresse_profession', v)} />
-              <span className="np-lbl">Ville</span>
-              <Lookup size="md" source="ville_prof" value={form.ville_profession} onChange={v => set('ville_profession', v)} />
-              <Lookup size="sm" source="code_ville_prof" value={form.code_ville_profession} onChange={v => set('code_ville_profession', v)} />
-            </div>
+                <div className="np-row">
+                  <span className="np-lbl">Remarques</span>
+                  <textarea className="np-textarea np-textarea--auto" value={form.remarques} rows={1}
+                    onChange={e => {
+                      set('remarques', e.target.value)
+                      const el = e.target
+                      el.style.height = 'auto'
+                      el.style.height = `${el.scrollHeight}px`
+                    }} />
+                </div>
 
-            <div className="np-divider" />
-
-            {/* Row 9 — Téléphones */}
-            <div className="np-row">
-              <span className="np-lbl">Tél dom</span>
-              <input className="np-inp np-inp--md" value={form.tel_domicile}
-                onChange={e => set('tel_domicile', e.target.value)} autoComplete="off" />
-              <span className="np-lbl">Tél bur</span>
-              <input className="np-inp np-inp--md" value={form.tel_bureau}
-                onChange={e => set('tel_bureau', e.target.value)} autoComplete="off" />
-              <span className="np-lbl">Tél Proche</span>
-              <input className="np-inp np-inp--md" value={form.tel_proche}
-                onChange={e => set('tel_proche', e.target.value)} autoComplete="off" />
-              <Lookup size="sm" source="proche" value={form.proche} onChange={v => set('proche', v)} />
-            </div>
-
-            <div className="np-divider" />
-
-            {/* Row 10 — Dates / Solde / Fiche notes */}
-            <div className="np-row">
-              <span className="np-lbl">1ère consult</span>
-              <input className="np-inp np-inp--sm" value={form.date_premiere_consultation}
-                onChange={e => set('date_premiere_consultation', e.target.value)} autoComplete="off" />
-              <span className="np-lbl">Dernière consult</span>
-              <input className="np-inp np-inp--sm" value="" readOnly />
-              <span className="np-lbl">Solde</span>
-              <input className="np-inp np-inp--sm" value="" readOnly />
-              <span className="np-lbl">Fiche notes</span>
-              <input type="checkbox" className="np-checkbox"
-                checked={form.notes_state}
-                onChange={e => set('notes_state', e.target.checked)} />
-            </div>
-
-            {/* Row 11 — Statut / Assurance / N° affiliation */}
-            <div className="np-row">
-              <span className="np-lbl">Statut</span>
-              <Lookup size="md" source="statut" value={form.statut} onChange={v => set('statut', v)} />
-              <span className="np-lbl">Assurance</span>
-              <Lookup size="grow" value={form.couverture_sociale} onChange={v => set('couverture_sociale', v)} />
-              <span className="np-lbl">N° affiliation</span>
-              <input className="np-inp np-inp--md" value={form.numero_affiliation}
-                onChange={e => set('numero_affiliation', e.target.value)} autoComplete="off" />
-            </div>
-
-            {/* Auto-notes area (grey, read-only) */}
-            <textarea className="np-auto-notes" readOnly placeholder="" />
-
-            <div className="np-divider" />
-
-            {/* Médecins traitants */}
-            <div className="np-list-row">
-              <span className="np-list-label">Médecins traitants</span>
-              <div className="np-list-box" />
-            </div>
-
-            {/* Confier à */}
-            <div className="np-list-row">
-              <span className="np-list-label">Confier à</span>
-              <div className="np-list-box" />
-            </div>
-
-            <div className="np-divider" />
-
-            {/* Remarques */}
-            <div className="np-remarks-row">
-              <span className="np-list-label">Remarques</span>
-              <textarea className="np-textarea" value={form.remarques}
-                onChange={e => set('remarques', e.target.value)} />
+              </div>
             </div>
 
           </div>
