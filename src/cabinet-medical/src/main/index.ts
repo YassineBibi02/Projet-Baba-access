@@ -340,6 +340,17 @@ app.whenReady().then(() => {
     return String(parseInt(match[1], 10) + 1) + match[2]
   })
 
+  // patients:delete — permanently remove a record by compteur
+  ipcMain.handle('patients:delete', (_event, compteur: number) => {
+    if (!db) return { ok: false, error: 'No database' }
+    try {
+      db.prepare('DELETE FROM raw_t_fiche_administrative WHERE CAST(compteur AS INTEGER) = ?').run(compteur)
+      return { ok: true }
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) }
+    }
+  })
+
   // patients:update — update an existing record by compteur
   ipcMain.handle('patients:update', (_event, compteur: number, data: Record<string, string | number | null>) => {
     if (!db) return { ok: false, error: 'No database' }

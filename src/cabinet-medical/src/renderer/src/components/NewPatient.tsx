@@ -311,6 +311,26 @@ export default function NewPatient({ onBack, editCompteur }: Props) {
   const [form, setForm] = useState<Form>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteInput, setDeleteInput] = useState('')
+  const [deleteResult, setDeleteResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  const [countdown, setCountdown] = useState(3)
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (!deleteResult?.ok) return
+    let c = 3
+    setCountdown(3)
+    countdownRef.current = setInterval(() => {
+      c -= 1
+      setCountdown(c)
+      if (c === 0) {
+        clearInterval(countdownRef.current!)
+        onBack()
+      }
+    }, 1000)
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current) }
+  }, [deleteResult])
 
   useEffect(() => {
     if (editCompteur) {
@@ -408,6 +428,17 @@ export default function NewPatient({ onBack, editCompteur }: Props) {
     }
   }
 
+  async function handleDelete() {
+    if (!editCompteur) return
+    const result = await window.api.deletePatient(editCompteur)
+    setShowDeleteModal(false)
+    setDeleteInput('')
+    setDeleteResult(result)
+  }
+
+  const expectedName = form.nom.trim().toUpperCase()
+  const deleteConfirmed = deleteInput.trim().toUpperCase() === expectedName && expectedName !== ''
+
   return (
     <div className="ps-shell">
 
@@ -427,7 +458,11 @@ export default function NewPatient({ onBack, editCompteur }: Props) {
             )}
             <button className="ps-btn" disabled>Imprimer</button>
             <button className="ps-btn" onClick={onBack}>Menu général</button>
-            <button className="ps-btn np-btn--danger" disabled>Supprimer</button>
+            {editCompteur && (
+              <button className="ps-btn np-btn--danger" onClick={() => { setDeleteInput(''); setShowDeleteModal(true) }}>
+                Supprimer
+              </button>
+            )}
             <button
               className="ps-btn np-btn--primary"
               onClick={handleSave}
@@ -651,6 +686,69 @@ export default function NewPatient({ onBack, editCompteur }: Props) {
           </div>
         </div>
       </div>
+
+      {/* ── Delete result modal ── */}
+      {deleteResult && (
+        <div className="np-modal-overlay">
+          <div className="np-modal">
+            <h2 className={`np-modal-title ${deleteResult.ok ? 'np-modal-title--success' : ''}`}>
+              {deleteResult.ok ? 'Patient supprimé' : 'Erreur de suppression'}
+            </h2>
+            <p className="np-modal-body">
+              {deleteResult.ok
+                ? `La fiche a été supprimée avec succès. Redirection dans ${countdown}…`
+                : `Erreur : ${deleteResult.error}`}
+            </p>
+            <div className="np-modal-actions">
+              <button
+                className="np-modal-btn np-modal-btn--cancel"
+                onClick={() => {
+                  if (deleteResult.ok) {
+                    if (countdownRef.current) clearInterval(countdownRef.current)
+                    onBack()
+                  } else {
+                    setDeleteResult(null)
+                  }
+                }}
+              >
+                {deleteResult.ok ? 'Retour maintenant' : 'Fermer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirmation modal ── */}
+      {showDeleteModal && (
+        <div className="np-modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="np-modal" onClick={e => e.stopPropagation()}>
+            <h2 className="np-modal-title">Supprimer le patient</h2>
+            <p className="np-modal-body">
+              Cette action est <strong>irréversible</strong>. La fiche de{' '}
+              <strong>{[form.prenom, form.nom].filter(Boolean).join(' ')}</strong> sera définitivement supprimée.
+            </p>
+            <div>
+              <div className="np-modal-label">Tapez le nom <strong>{form.nom}</strong> pour confirmer :</div>
+              <input
+                className="np-modal-inp"
+                autoFocus
+                value={deleteInput}
+                onChange={e => setDeleteInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && deleteConfirmed) handleDelete() }}
+                placeholder={form.nom}
+              />
+            </div>
+            <div className="np-modal-actions">
+              <button className="np-modal-btn np-modal-btn--cancel" onClick={() => setShowDeleteModal(false)}>
+                Annuler
+              </button>
+              <button className="np-modal-btn np-modal-btn--delete" disabled={!deleteConfirmed} onClick={handleDelete}>
+                Supprimer définitivement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

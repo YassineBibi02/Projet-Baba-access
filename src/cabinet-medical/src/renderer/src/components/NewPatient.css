@@ -1,5 +1,79 @@
 /* ── NewPatient form ── */
 
+/* ── Delete confirmation modal ── */
+.np-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.np-modal {
+  background: #fff;
+  border-radius: calc(8px * var(--ui-scale));
+  box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+  padding: calc(24px * var(--ui-scale)) calc(28px * var(--ui-scale));
+  width: calc(400px * var(--ui-scale));
+  display: flex;
+  flex-direction: column;
+  gap: calc(14px * var(--ui-scale));
+}
+.np-modal-title {
+  margin: 0;
+  font-size: calc(17px * var(--ui-scale));
+  font-weight: 800;
+  color: #991b1b;
+}
+.np-modal-title--success { color: #065f46; }
+.np-modal-body {
+  font-size: calc(14px * var(--ui-scale));
+  color: #374151;
+  line-height: 1.5;
+}
+.np-modal-body strong { color: #111; }
+.np-modal-label {
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: calc(4px * var(--ui-scale));
+}
+.np-modal-inp {
+  width: 100%;
+  height: calc(34px * var(--ui-scale));
+  padding: 0 calc(8px * var(--ui-scale));
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: calc(14px * var(--ui-scale));
+  font-weight: 700;
+  color: #111;
+  box-sizing: border-box;
+  outline: none;
+}
+.np-modal-inp:focus { border-color: #ef4444; box-shadow: 0 0 0 2px rgba(239,68,68,0.15); }
+.np-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: calc(8px * var(--ui-scale));
+}
+.np-modal-btn {
+  height: calc(34px * var(--ui-scale));
+  padding: 0 calc(16px * var(--ui-scale));
+  border-radius: 3px;
+  border: 1px solid #d1d5db;
+  font-family: inherit;
+  font-size: calc(14px * var(--ui-scale));
+  font-weight: 700;
+  cursor: pointer;
+}
+.np-modal-btn--cancel { background: #f3f4f6; color: #374151; }
+.np-modal-btn--cancel:hover { background: #e5e7eb; }
+.np-modal-btn--delete { background: #dc2626; color: #fff; border-color: #dc2626; }
+.np-modal-btn--delete:hover:not(:disabled) { background: #b91c1c; }
+.np-modal-btn--delete:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* ── Topbar button variants ── */
 .np-btn--danger  { background: #fee2e2 !important; color: #991b1b !important; border-color: #fca5a5 !important; }
 .np-btn--danger:hover  { background: #fecaca !important; }

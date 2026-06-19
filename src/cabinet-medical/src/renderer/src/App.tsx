@@ -109,7 +109,11 @@ function App() {
   }
   if (currentView === "nouveau-patient") {
     return <NewPatient
-      onBack={() => { setEditCompteur(null); setCurrentView(null); }}
+      onBack={() => {
+        const returnTo = editCompteur !== null ? "recherche-patient" : null;
+        setEditCompteur(null);
+        setCurrentView(returnTo);
+      }}
       editCompteur={editCompteur}
     />;
   }
