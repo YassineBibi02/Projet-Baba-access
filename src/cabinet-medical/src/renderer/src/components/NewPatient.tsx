@@ -215,23 +215,53 @@ export default function NewPatient({ onBack }: Props) {
             </div>
 
             {/* Row 4 — Naissance / Lieu / Sexe / Situation */}
-            <div className="np-row">
-              <span className="np-lbl">Né(e) le</span>
-              <input className="np-inp np-inp--sm" value={form.date_naissance}
-                onChange={e => set('date_naissance', e.target.value)}
-                placeholder="jj/mm/aaaa" autoComplete="off" />
-              <span className="np-lbl">Lieu</span>
-              <Lookup size="sm" source="lieu_naissance" value={form.lieu_naissance} onChange={v => set('lieu_naissance', v)} />
-              <span className="np-lbl">Sexe</span>
-              <Lookup size="xs" source="sexe" value={form.sexe} onChange={v => set('sexe', v)} />
-              <span className="np-lbl">Situation</span>
-              <Lookup size="md" source="situation_famille" value={form.situation_famille} onChange={v => set('situation_famille', v)} />
-              {form.situation_famille && (
-                <span className="np-badge">{form.situation_famille}</span>
-              )}
-            </div>
+<div className="np-row">
+  <span className="np-lbl">Né(e) le</span>
+  <input
+    className="np-inp np-inp--sm"
+    value={form.date_naissance}
+    onChange={e => set('date_naissance', e.target.value)}
+    placeholder="jj/mm/aaaa"
+    autoComplete="off"
+  />
 
-            <div className="np-divider" />
+  <span className="np-lbl">Lieu</span>
+  <Lookup
+    size="sm"
+    value={form.lieu_naissance}
+    onChange={v => set('lieu_naissance', v)}
+  />
+
+  <span className="np-lbl">Sexe</span>
+  <select
+    value={form.sexe}
+    onChange={e => set('sexe', e.target.value)}
+    className="np-inp np-inp--sm"
+  >
+    <option value="">Choisir</option>
+    <option value="Homme">Homme</option>
+    <option value="Femme">Femme</option>
+  </select>
+
+  <span className="np-lbl">Situation</span>
+  <select
+    value={form.situation_famille}
+    onChange={e => set('situation_famille', e.target.value)}
+    className="np-inp np-inp--md"
+  >
+    <option value="">Choisir</option>
+    <option value="Célibataire">Célibataire</option>
+    <option value="Mariée">Mariée</option>
+    <option value="Divorcée">Divorcée</option>
+    <option value="Veuf">Veuf / Veuve</option>
+  </select>
+
+  {form.situation_famille && (
+    <span className="np-badge">{form.situation_famille}</span>
+  )}
+</div>
+
+<div className="np-divider" />
 
             {/* Row 5 — Adresse / Ville / Code ville */}
             <div className="np-row">
