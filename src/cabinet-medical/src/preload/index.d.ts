@@ -10,21 +10,9 @@ export interface PatientRow {
   tel_domicile: string | null
 }
 
-export interface PatientFileRow {
-  compteur: number
-  nom: string | null
-  prenom: string | null
-  n_dossier: string | null
-  notesstate: string | null
-  date_de_naissance: string | null
-  date_1ere_consultation: string | null
-}
-
 export interface SearchResult {
   rows: PatientRow[]
   seekIndex: number
-  hasBefore: boolean
-  hasAfter: boolean
 }
 
 export interface PatientFull {
@@ -103,8 +91,6 @@ declare global {
       }) => Promise<SearchResult>
       getPatient: (compteur: number) => Promise<PatientFull | null>
       getConsultations: (compteur: number) => Promise<ConsultData>
-      lookupSearch: (p: { source: string; value: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
-      lookupLoadMore: (p: { source: string; value: string; anchor: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
     }
   }
 }

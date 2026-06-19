@@ -5,9 +5,7 @@ const api = {
   searchPatients: (p: { field: 'nom' | 'prenom' | 'code'; value: string }) =>
     ipcRenderer.invoke('patients:search', p),
   getPatient: (compteur: number) => ipcRenderer.invoke('patients:get', compteur),
-  getConsultations: (compteur: number) => ipcRenderer.invoke('patients:consultations', compteur),
-  lookupSearch: (p: { source: string; value: string }) => ipcRenderer.invoke('lookup:search', p),
-  lookupLoadMore: (p: { source: string; value: string; anchor: string }) => ipcRenderer.invoke('lookup:load-more', p)
+  getConsultations: (compteur: number) => ipcRenderer.invoke('patients:consultations', compteur)
 }
 
 if (process.contextIsolated) {

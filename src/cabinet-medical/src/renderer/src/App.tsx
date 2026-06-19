@@ -75,13 +75,19 @@ const menuItems: MenuItem[] = [
 
 function App() {
   const [currentView, setCurrentView] = useState<string | null>(null);
+  const [editCompteur, setEditCompteur] = useState<number | null>(null);
 
   function handleMenuClick(item: MenuItem) {
     if (item.view === "quitter") {
       window.close();
       return;
     }
-    if (item.view === "recherche-patient" || item.view === "nouveau-patient" || item.view === "fichier-patients" ) {
+    if (item.view === "nouveau-patient") {
+      setEditCompteur(null);
+      setCurrentView("nouveau-patient");
+      return;
+    }
+    if (item.view === "recherche-patient" || item.view === "fichier-patients") {
       setCurrentView(item.view);
       return;
     }
@@ -93,13 +99,19 @@ function App() {
   }
 
   if (currentView === "recherche-patient") {
-    return <PatientSearch onBack={() => setCurrentView(null)} />;
+    return <PatientSearch
+      onBack={() => setCurrentView(null)}
+      onOpenAdmin={compteur => { setEditCompteur(compteur); setCurrentView("nouveau-patient"); }}
+    />;
   }
   if (currentView === "fichier-patients") {
     return <PatientsFile onBack={() => setCurrentView(null)} />;
   }
   if (currentView === "nouveau-patient") {
-    return <NewPatient onBack={() => setCurrentView(null)} />;
+    return <NewPatient
+      onBack={() => { setEditCompteur(null); setCurrentView(null); }}
+      editCompteur={editCompteur}
+    />;
   }
 
   return (
