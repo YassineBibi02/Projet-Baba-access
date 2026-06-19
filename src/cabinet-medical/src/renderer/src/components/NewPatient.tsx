@@ -386,7 +386,7 @@ export default function NewPatient({ onBack }: Props) {
 
       {/* ── Workspace ── */}
       <div className="ps-workspace">
-        <div className="ps-card">
+        <div className="ps-card np-card-fill">
           <div className="np-form">
 
             {feedback && (
@@ -445,9 +445,9 @@ export default function NewPatient({ onBack }: Props) {
               </div>
             </div>
 
-            {/* ── ADRESSE ── */}
+            {/* ── ADRESSE & CONTACT ── */}
             <div className="np-section">
-              <div className="np-section-head">Adresse</div>
+              <div className="np-section-head">Adresse &amp; Contact</div>
               <div className="np-section-body">
 
                 <div className="np-row">
@@ -459,6 +459,22 @@ export default function NewPatient({ onBack }: Props) {
                     <Lookup size="sm" source="code_ville" value={form.code_ville} onChange={v => set('code_ville', v)} />
                     <span className="np-lbl2">Gouv./pays</span>
                     <Lookup size="sm" source="gouvernorat" value={form.gouvernorat_pays} onChange={v => set('gouvernorat_pays', v)} />
+                  </div>
+                </div>
+
+                <div className="np-row">
+                  <span className="np-lbl">Tél domicile</span>
+                  <div className="np-inline">
+                    <input className="np-inp np-inp--md" value={form.tel_domicile}
+                      onChange={e => set('tel_domicile', e.target.value)} autoComplete="off" />
+                    <span className="np-lbl2">Tél bureau</span>
+                    <input className="np-inp np-inp--md" value={form.tel_bureau}
+                      onChange={e => set('tel_bureau', e.target.value)} autoComplete="off" />
+                    <span className="np-lbl2">Proche</span>
+                    <Lookup size="md" source="proche" value={form.proche} onChange={v => set('proche', v)} />
+                    <span className="np-lbl2">Tél proche</span>
+                    <input className="np-inp np-inp--md" value={form.tel_proche}
+                      onChange={e => set('tel_proche', e.target.value)} autoComplete="off" />
                   </div>
                 </div>
 
@@ -491,30 +507,6 @@ export default function NewPatient({ onBack }: Props) {
                     <span className="np-lbl2">Ville</span>
                     <Lookup size="md" source="ville_prof" value={form.ville_profession} onChange={v => set('ville_profession', v)} />
                     <Lookup size="sm" source="code_ville_prof" value={form.code_ville_profession} onChange={v => set('code_ville_profession', v)} />
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            {/* ── CONTACT ── */}
-            <div className="np-section">
-              <div className="np-section-head">Contact</div>
-              <div className="np-section-body">
-
-                <div className="np-row">
-                  <span className="np-lbl">Tél domicile</span>
-                  <div className="np-inline">
-                    <input className="np-inp np-inp--md" value={form.tel_domicile}
-                      onChange={e => set('tel_domicile', e.target.value)} autoComplete="off" />
-                    <span className="np-lbl2">Tél bureau</span>
-                    <input className="np-inp np-inp--md" value={form.tel_bureau}
-                      onChange={e => set('tel_bureau', e.target.value)} autoComplete="off" />
-                    <span className="np-lbl2">Proche</span>
-                    <Lookup size="md" source="proche" value={form.proche} onChange={v => set('proche', v)} />
-                    <span className="np-lbl2">Tél proche</span>
-                    <input className="np-inp np-inp--md" value={form.tel_proche}
-                      onChange={e => set('tel_proche', e.target.value)} autoComplete="off" />
                   </div>
                 </div>
 

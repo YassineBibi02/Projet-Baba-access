@@ -25,6 +25,11 @@
 }
 .np-feedback-close:hover { opacity: 1; }
 
+/* Fill the visible workspace — topbar 46 + padding 12+12 + footer 71 = 141px total chrome */
+.np-card-fill {
+  min-height: calc(100vh - calc(141px * var(--ui-scale)));
+}
+
 /* ── Form wrapper ── */
 .np-form {
   padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
