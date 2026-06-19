@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import "./PatientsFile.css";
 
 interface Props {
@@ -16,15 +16,17 @@ interface Patient {
 }
 
 type SortKey = "nom" | "prenom" | "code" | "naissance";
-type PageSize = 10 | 25 | 50 | 100 | "all";
+type SortDir = "asc" | "desc" | null;
 
-const PAGE_SIZE_OPTIONS: { label: string; value: PageSize }[] = [
-  { label: "10", value: 10 },
-  { label: "25", value: 25 },
-  { label: "50", value: 50 },
-  { label: "100", value: 100 },
-  { label: "Tous", value: "all" },
-];
+const CHUNK = 500;
+const SCROLL_THRESHOLD = 200; // px avant le bas du tableau pour déclencher le lot suivant
+
+const SORT_LABELS: Record<SortKey, string> = {
+  nom: "Nom",
+  prenom: "Prénom",
+  code: "Code dossier",
+  naissance: "Date de naissance",
+};
 
 function parseAccessDate(raw: string | null): Date | null {
   if (!raw) return null;
@@ -38,6 +40,16 @@ function fmtDate(raw: string | null): string {
   const d = parseAccessDate(raw);
   if (!d) return "—";
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+// Le code dossier suit le format "ZZZZ/XX" : un tri sur la chaîne brute est
+// faux ("9/24" se retrouverait après "10/24"). On extrait la partie
+// numérique avant le "/" et on compare des nombres.
+function parseDossierNum(code: string | null): number {
+  if (!code) return -Infinity;
+  const head = code.split("/")[0].trim();
+  const n = parseInt(head.replace(/\D/g, ""), 10);
+  return isNaN(n) ? -Infinity : n;
 }
 
 interface ModalProps {
@@ -106,33 +118,34 @@ function PatientModal({ patient, onClose }: ModalProps) {
   );
 }
 
+function SortIcon({ dir }: { dir: SortDir }) {
+  return (
+    <span className="pf-sort-icon" aria-hidden="true">
+      <span className={`pf-sort-arrow pf-sort-arrow--up${dir === "asc" ? " is-active" : ""}`}>▲</span>
+      <span className={`pf-sort-arrow pf-sort-arrow--down${dir === "desc" ? " is-active" : ""}`}>▼</span>
+    </span>
+  );
+}
+
 export default function PatientsFile({ onBack }: Props) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [orderBy, setOrderBy] = useState<SortKey>("nom");
-  const [pageSize, setPageSize] = useState<PageSize>(25);
-  const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [visibleCount, setVisibleCount] = useState(CHUNK);
   const [modalPatient, setModalPatient] = useState<Patient | null>(null);
+
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       try {
-        const [before, after] = await Promise.all([
-          window.api.searchPatients({ field: "nom", value: "!" }),
-          window.api.searchPatients({ field: "nom", value: "A" }),
-        ]);
-        if (!cancelled) {
-          const seen = new Set<number>();
-          const all: Patient[] = [];
-          for (const row of [...(before.rows as Patient[]), ...(after.rows as Patient[])]) {
-            if (!seen.has(row.compteur)) { seen.add(row.compteur); all.push(row); }
-          }
-          setPatients(all);
-        }
+        const rows = await window.api.listPatients();
+        if (!cancelled) setPatients(rows);
       } catch {
         if (!cancelled) setPatients([]);
       } finally {
@@ -154,47 +167,62 @@ export default function PatientsFile({ onBack }: Props) {
         )
       : patients;
 
+    if (!sortKey || !sortDir) return base;
+
+    const mult = sortDir === "asc" ? 1 : -1;
     return [...base].sort((a, b) => {
-      switch (orderBy) {
+      switch (sortKey) {
         case "prenom":
-          return (a.prenom ?? "").localeCompare(b.prenom ?? "");
+          return mult * (a.prenom ?? "").localeCompare(b.prenom ?? "");
         case "code":
-          return (a.n_dossier ?? "").localeCompare(b.n_dossier ?? "");
-        case "naissance":
-          return (a.date_de_naissance ?? "").localeCompare(b.date_de_naissance ?? "");
+          return mult * (parseDossierNum(a.n_dossier) - parseDossierNum(b.n_dossier));
+        case "naissance": {
+          const da = parseAccessDate(a.date_de_naissance)?.getTime() ?? -Infinity;
+          const db = parseAccessDate(b.date_de_naissance)?.getTime() ?? -Infinity;
+          return mult * (da - db);
+        }
         default:
-          return (a.nom ?? "").localeCompare(b.nom ?? "");
+          return mult * (a.nom ?? "").localeCompare(b.nom ?? "");
       }
     });
-  }, [patients, search, orderBy]);
+  }, [patients, search, sortKey, sortDir]);
 
-  const totalPages = useMemo(() => {
-    if (pageSize === "all") return 1;
-    return Math.max(1, Math.ceil(filtered.length / (pageSize as number)));
-  }, [filtered.length, pageSize]);
+  // À chaque nouvelle recherche / nouveau tri, on revient au premier lot de 500
+  useEffect(() => {
+    setVisibleCount(CHUNK);
+    wrapperRef.current?.scrollTo({ top: 0 });
+  }, [search, sortKey, sortDir]);
 
-  const safePage = Math.min(page, totalPages);
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
 
-  const paginated = useMemo(() => {
-    if (pageSize === "all") return filtered;
-    const size = pageSize as number;
-    const start = (safePage - 1) * size;
-    return filtered.slice(start, start + size);
-  }, [filtered, pageSize, safePage]);
+  const loadMore = useCallback(() => {
+    setVisibleCount((c) => Math.min(c + CHUNK, filtered.length));
+  }, [filtered.length]);
+
+  const handleScroll = useCallback(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_THRESHOLD) {
+      loadMore();
+    }
+  }, [loadMore]);
 
   const handleSort = useCallback((key: SortKey) => {
-    setOrderBy(key);
-    setPage(1);
-  }, []);
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir("asc");
+    } else if (sortDir === "asc") {
+      setSortDir("desc");
+    } else if (sortDir === "desc") {
+      setSortKey(null);
+      setSortDir(null);
+    } else {
+      setSortDir("asc");
+    }
+  }, [sortKey, sortDir]);
 
   const handleSearch = useCallback((v: string) => {
     setSearch(v);
-    setPage(1);
-  }, []);
-
-  const handlePageSize = useCallback((v: PageSize) => {
-    setPageSize(v);
-    setPage(1);
   }, []);
 
   const handleRowClick = useCallback((id: number) => {
@@ -206,11 +234,8 @@ export default function PatientsFile({ onBack }: Props) {
   }, []);
 
   const scrollTop = useCallback(() => {
-    document.querySelector(".pf-table-wrapper")?.scrollTo({ top: 0, behavior: "smooth" });
+    wrapperRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
-
-  const startEntry = pageSize === "all" ? 1 : (safePage - 1) * (pageSize as number) + 1;
-  const endEntry = pageSize === "all" ? filtered.length : Math.min(safePage * (pageSize as number), filtered.length);
 
   return (
     <div className="pf-page">
@@ -235,38 +260,24 @@ export default function PatientsFile({ onBack }: Props) {
 
         <section className="pf-controls">
           <div className="pf-order">
-            <span className="pf-order-label">Ordre</span>
-            <div className="pf-chip-group">
-              {(["nom", "prenom", "code", "naissance"] as SortKey[]).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={orderBy === key ? "pf-chip pf-chip--active" : "pf-chip"}
-                  onClick={() => handleSort(key)}
-                >
-                  {key === "nom" ? "Nom" : key === "prenom" ? "Prénom" : key === "code" ? "Code dossier" : "Date naissance"}
-                </button>
-              ))}
-            </div>
+            <span className="pf-order-label">Tri</span>
+            <span className="pf-order-hint">
+              {sortKey && sortDir
+                ? `${SORT_LABELS[sortKey]} · ${sortDir === "asc" ? "croissant" : "décroissant"}`
+                : "Cliquez sur un en-tête de colonne"}
+            </span>
+            {sortKey && (
+              <button
+                type="button"
+                className="pf-chip"
+                onClick={() => { setSortKey(null); setSortDir(null); }}
+              >
+                Réinitialiser
+              </button>
+            )}
           </div>
 
           <div className="pf-controls-right">
-            <div className="pf-pagesize">
-              <span className="pf-order-label">Lignes</span>
-              <div className="pf-chip-group">
-                {PAGE_SIZE_OPTIONS.map((opt) => (
-                  <button
-                    key={String(opt.value)}
-                    type="button"
-                    className={pageSize === opt.value ? "pf-chip pf-chip--active" : "pf-chip"}
-                    onClick={() => handlePageSize(opt.value)}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="pf-search">
               <div className="pf-search-box">
                 <span className="pf-search-icon">⌕</span>
@@ -283,7 +294,7 @@ export default function PatientsFile({ onBack }: Props) {
           </div>
         </section>
 
-        <div className="pf-table-wrapper">
+        <div className="pf-table-wrapper" ref={wrapperRef} onScroll={handleScroll}>
           {loading ? (
             <div className="pf-empty">Chargement des patients…</div>
           ) : filtered.length === 0 ? (
@@ -293,38 +304,41 @@ export default function PatientsFile({ onBack }: Props) {
               <thead>
                 <tr>
                   <th className="pf-col-index">#</th>
-                  <th className="pf-col-name">Nom</th>
-                  <th className="pf-col-firstname">Prénom</th>
-                  <th className="pf-col-code">Code dossier</th>
+                  <th className="pf-col-name pf-th-sortable" onClick={() => handleSort("nom")}>
+                    <span className="pf-th-inner">Nom<SortIcon dir={sortKey === "nom" ? sortDir : null} /></span>
+                  </th>
+                  <th className="pf-col-firstname pf-th-sortable" onClick={() => handleSort("prenom")}>
+                    <span className="pf-th-inner">Prénom<SortIcon dir={sortKey === "prenom" ? sortDir : null} /></span>
+                  </th>
+                  <th className="pf-col-code pf-th-sortable" onClick={() => handleSort("code")}>
+                    <span className="pf-th-inner">Code dossier<SortIcon dir={sortKey === "code" ? sortDir : null} /></span>
+                  </th>
                   <th className="pf-col-notes">Notes</th>
-                  <th className="pf-col-birth">Né(e) le</th>
+                  <th className="pf-col-birth pf-th-sortable" onClick={() => handleSort("naissance")}>
+                    <span className="pf-th-inner">Né(e) le<SortIcon dir={sortKey === "naissance" ? sortDir : null} /></span>
+                  </th>
                   <th className="pf-col-consult">1ère consultation</th>
                 </tr>
               </thead>
               <tbody>
-                {paginated.map((patient, index) => {
-                  const globalIndex = pageSize === "all"
-                    ? index + 1
-                    : (safePage - 1) * (pageSize as number) + index + 1;
-                  return (
-                    <tr
-                      key={patient.compteur}
-                      className={selectedId === patient.compteur ? "pf-row-active" : ""}
-                      onClick={() => handleRowClick(patient.compteur)}
-                      onDoubleClick={() => handleRowDblClick(patient)}
-                    >
-                      <td className="pf-col-index">{globalIndex}</td>
-                      <td className="pf-col-name">{patient.nom ?? "—"}</td>
-                      <td className="pf-col-firstname">{patient.prenom ?? "—"}</td>
-                      <td className="pf-col-code">{patient.n_dossier ?? "—"}</td>
-                      <td className="pf-col-notes">
-                        <span className={patient.notesstate ? "pf-note-box pf-note-box--checked" : "pf-note-box"} />
-                      </td>
-                      <td className="pf-col-birth">{fmtDate(patient.date_de_naissance)}</td>
-                      <td className="pf-col-consult">{fmtDate(patient.date_1ere_consultation)}</td>
-                    </tr>
-                  );
-                })}
+                {visible.map((patient, index) => (
+                  <tr
+                    key={patient.compteur}
+                    className={selectedId === patient.compteur ? "pf-row-active" : ""}
+                    onClick={() => handleRowClick(patient.compteur)}
+                    onDoubleClick={() => handleRowDblClick(patient)}
+                  >
+                    <td className="pf-col-index">{index + 1}</td>
+                    <td className="pf-col-name">{patient.nom ?? "—"}</td>
+                    <td className="pf-col-firstname">{patient.prenom ?? "—"}</td>
+                    <td className="pf-col-code">{patient.n_dossier ?? "—"}</td>
+                    <td className="pf-col-notes">
+                      <span className={patient.notesstate ? "pf-note-box pf-note-box--checked" : "pf-note-box"} />
+                    </td>
+                    <td className="pf-col-birth">{fmtDate(patient.date_de_naissance)}</td>
+                    <td className="pf-col-consult">{fmtDate(patient.date_1ere_consultation)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
@@ -335,54 +349,17 @@ export default function PatientsFile({ onBack }: Props) {
             <span className="pf-status-dot" />
             <span>
               {filtered.length > 0
-                ? `${startEntry}–${endEntry} sur ${filtered.length} patient${filtered.length > 1 ? "s" : ""}`
+                ? `${visible.length.toLocaleString("fr-FR")} sur ${filtered.length.toLocaleString("fr-FR")} patient${filtered.length > 1 ? "s" : ""} affichés`
                 : "0 patient"}
             </span>
           </div>
 
           <div className="pf-pagination">
-            <button
-              type="button"
-              className="pf-page-btn"
-              disabled={safePage <= 1 || pageSize === "all"}
-              onClick={() => setPage(1)}
-              title="Première page"
-            >
-              «
-            </button>
-            <button
-              type="button"
-              className="pf-page-btn"
-              disabled={safePage <= 1 || pageSize === "all"}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              title="Page précédente"
-            >
-              ‹
-            </button>
-
-            <span className="pf-page-info">
-              {pageSize === "all" ? "Tout" : `Page ${safePage} / ${totalPages}`}
-            </span>
-
-            <button
-              type="button"
-              className="pf-page-btn"
-              disabled={safePage >= totalPages || pageSize === "all"}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              title="Page suivante"
-            >
-              ›
-            </button>
-            <button
-              type="button"
-              className="pf-page-btn"
-              disabled={safePage >= totalPages || pageSize === "all"}
-              onClick={() => setPage(totalPages)}
-              title="Dernière page"
-            >
-              »
-            </button>
-
+            {visibleCount < filtered.length && (
+              <button type="button" className="pf-page-btn pf-page-btn--wide" onClick={loadMore}>
+                Afficher 500 de plus
+              </button>
+            )}
             <button
               type="button"
               className="pf-page-btn pf-page-btn--top"

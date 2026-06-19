@@ -4,6 +4,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 const api = {
   searchPatients: (p: { field: 'nom' | 'prenom' | 'code'; value: string }) =>
     ipcRenderer.invoke('patients:search', p),
+  listPatients: () => ipcRenderer.invoke('patients:list'),
   getPatient: (compteur: number) => ipcRenderer.invoke('patients:get', compteur),
   getConsultations: (compteur: number) => ipcRenderer.invoke('patients:consultations', compteur)
 }

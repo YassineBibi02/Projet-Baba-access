@@ -63,6 +63,7 @@ app.whenReady().then(() => {
 
   // Returns { rows, seekIndex } where seekIndex is the first row >= the typed value.
   // 500 rows before the seek position + 2000 after = up to 2500 rows, virtually scrolled.
+  // NB: utilisé pour le typeahead de Recherche Patient — ne renvoie jamais toute la table.
   ipcMain.handle(
     'patients:search',
     (_event, p: { field: 'nom' | 'prenom' | 'code'; value: string }) => {
@@ -99,6 +100,17 @@ app.whenReady().then(() => {
       return { rows, seekIndex: 0 }
     }
   )
+
+  // Renvoie la table app_patients en entier (~38 000 lignes), pour le Fichier Patients.
+  // Le tri et la pagination par lots de 500 se font côté React, pas ici.
+  ipcMain.handle('patients:list', () => {
+    if (!db) return []
+    return getStmt(
+      `SELECT compteur, nom, prenom, n_dossier, notesstate, date_de_naissance, date_1ere_consultation
+       FROM app_patients
+       ORDER BY nom, prenom`
+    ).all()
+  })
 
   ipcMain.handle('patients:get', (_event, compteur: number) => {
     if (!db) return null

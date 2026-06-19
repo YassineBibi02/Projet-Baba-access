@@ -10,6 +10,16 @@ export interface PatientRow {
   tel_domicile: string | null
 }
 
+export interface PatientFileRow {
+  compteur: number
+  nom: string | null
+  prenom: string | null
+  n_dossier: string | null
+  notesstate: string | null
+  date_de_naissance: string | null
+  date_1ere_consultation: string | null
+}
+
 export interface SearchResult {
   rows: PatientRow[]
   seekIndex: number
@@ -89,6 +99,7 @@ declare global {
         field: 'nom' | 'prenom' | 'code'
         value: string
       }) => Promise<SearchResult>
+      listPatients: () => Promise<PatientFileRow[]>
       getPatient: (compteur: number) => Promise<PatientFull | null>
       getConsultations: (compteur: number) => Promise<ConsultData>
     }
