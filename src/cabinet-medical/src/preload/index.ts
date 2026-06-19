@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
-  searchPatients: (p: { field: 'nom' | 'prenom' | 'code'; value: string }) =>
+  searchPatients: (p: { field: 'nom' | 'prenom' | 'code' | 'ddn'; value: string }) =>
     ipcRenderer.invoke('patients:search', p),
   loadMorePatients: (p: {
     field: 'nom' | 'prenom' | 'code'

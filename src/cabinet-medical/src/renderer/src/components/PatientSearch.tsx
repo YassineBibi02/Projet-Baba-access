@@ -90,6 +90,19 @@ const ROW_H_BASE = 36
 const VISIBLE_ROWS = 13
 const EMPTY: SearchResult = { rows: [], seekIndex: 0, hasBefore: false, hasAfter: false }
 
+// Auto-insert slashes immediately after day (2 digits) and month (4 digits).
+// isDeleting prevents re-appending the slash when the user backspaces through it.
+function formatDateInput(raw: string, isDeleting = false): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8)
+  if (digits.length < 2) return digits
+  if (digits.length === 2) return isDeleting ? digits : digits + '/'
+  if (digits.length < 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  if (digits.length === 4) return isDeleting
+    ? `${digits.slice(0, 2)}/${digits.slice(2, 4)}`
+    : `${digits.slice(0, 2)}/${digits.slice(2, 4)}/`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
 // Access exports dates as "M/D/YYYY H:MM:SS" (US month-first)
 function parseAccessDate(raw: string | null): Date | null {
   if (!raw) return null
@@ -103,6 +116,12 @@ function fmtDate(raw: string | null): string {
   const d = parseAccessDate(raw)
   if (!d) return '—'
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+}
+
+function fmtTime(raw: string | null): string {
+  if (!raw) return ''
+  const m = raw.match(/(\d{1,2}:\d{2})/)
+  return m ? m[1] : ''
 }
 
 function calcAge(raw: string | null): string | null {
@@ -144,8 +163,9 @@ function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow, onSc
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const fromMouseRef = useRef(false)
-  const seekAdjustedRef = useRef(false)
-  const edgeCooldownRef = useRef(false)
+  const seekAdjustedRef   = useRef(false)
+  const edgeCooldownRef   = useRef(false)
+  const prependHandledRef = useRef(false)
 
   const ROW_H = useMemo(() => {
     const s = parseFloat(
@@ -157,32 +177,25 @@ function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow, onSc
   const CONTAINER_H = VISIBLE_ROWS * ROW_H
   const BUFFER = 5
 
-  // Pass 1: scroll to estimated position.
-  // If rows were prepended (scrollAdjustRef > 0), maintain current view instead.
-  useEffect(() => {
+  // Runs synchronously before paint — handles prepend correction here so there
+  // is no single-frame flash of wrong rows, and fine-tunes the seek position.
+  useLayoutEffect(() => {
     const el = listRef.current
-    if (!el || rows.length === 0) return
+    if (!el) return
 
     const adj = scrollAdjustRef.current
     if (adj > 0) {
+      // Rows prepended: shift scrollTop down by the same amount before the browser paints.
       scrollAdjustRef.current = 0
+      prependHandledRef.current = true
       const delta = adj * ROW_H
       el.scrollTop += delta
       setScrollTop(prev => prev + delta)
       return
     }
 
-    seekAdjustedRef.current = false
-    const target = seekIndex * ROW_H
-    el.scrollTop = target
-    setScrollTop(target)
-  }, [rows, seekIndex, ROW_H])
-
-  // Pass 2: once the seek row is in the DOM, read its real offsetTop and snap to it
-  useLayoutEffect(() => {
+    // Fine-tune: snap scrollTop to the seek element's real offsetTop (runs once per result set).
     if (seekAdjustedRef.current) return
-    const el = listRef.current
-    if (!el) return
     const seekEl = el.querySelector('[data-seek]') as HTMLElement | null
     if (!seekEl) return
     seekAdjustedRef.current = true
@@ -192,6 +205,31 @@ function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow, onSc
       setScrollTop(offset)
     }
   })
+
+  // Runs after paint — handles initial seek scroll and append-preserve.
+  useEffect(() => {
+    const el = listRef.current
+    if (!el || rows.length === 0) return
+
+    // Prepend was already handled synchronously by useLayoutEffect above.
+    if (prependHandledRef.current) {
+      prependHandledRef.current = false
+      return
+    }
+
+    // Append: rows added at the bottom — preserve current scroll position.
+    const adj = scrollAdjustRef.current
+    if (adj < 0) {
+      scrollAdjustRef.current = 0
+      return
+    }
+
+    // New search or seek: scroll to the seek row.
+    seekAdjustedRef.current = false
+    const target = seekIndex * ROW_H
+    el.scrollTop = target
+    setScrollTop(target)
+  }, [rows, seekIndex, ROW_H])
 
   // Keyboard navigation: scroll to keep the cursor row visible
   useEffect(() => {
@@ -361,7 +399,7 @@ function ConsultationList({ consultations, themes }: ConsultData) {
             <div className="ps-consult-row" onClick={() => toggle(c.compteur_consultation)}>
               <span className="ps-consult-chevron">{open ? '▼' : '▶'}</span>
               <span className="ps-consult-date">{fmtDate(c.date_consultation)}</span>
-              <span className="ps-consult-time">{c.heure_consultation ?? ''}</span>
+              <span className="ps-consult-time">{fmtTime(c.heure_consultation)}</span>
               <span className="ps-consult-dossier">
                 {c.titre_dossier_medical ?? c.code_dossier_medical ?? `Dossier ${c.numero_dossier_medical ?? '?'}`}
               </span>
@@ -395,8 +433,9 @@ export default function PatientSearch({ onBack }: Props) {
   const [nom, setNom]       = useState('')
   const [prenom, setPrenom] = useState('')
   const [code, setCode]     = useState('')
+  const [ddn, setDdn]       = useState('')
   const [result, setResult]         = useState<SearchResult>(EMPTY)
-  const [openField, setOpenField]   = useState<'nom' | 'prenom' | 'code' | null>(null)
+  const [openField, setOpenField]   = useState<'nom' | 'prenom' | 'code' | 'ddn' | null>(null)
   const [cursor, setCursor]         = useState(-1)
   const [patient, setPatient]       = useState<PatientFull | null>(null)
   const [showResume, setShowResume] = useState(false)
@@ -416,7 +455,7 @@ export default function PatientSearch({ onBack }: Props) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  function seek(field: 'nom' | 'prenom' | 'code', value: string) {
+  function seek(field: 'nom' | 'prenom' | 'code' | 'ddn', value: string) {
     if (timerRef.current) clearTimeout(timerRef.current)
     setOpenField(field)
     timerRef.current = setTimeout(async () => {
@@ -428,12 +467,14 @@ export default function PatientSearch({ onBack }: Props) {
 
   async function loadMore(dir: 'before' | 'after') {
     if (loadingMoreRef.current || !openField) return
+    if (openField === 'ddn') return  // birthday results are not paginated
     const anchor = dir === 'after' ? result.rows[result.rows.length - 1] : result.rows[0]
     if (!anchor) return
     loadingMoreRef.current = true
     try {
       const more = await window.api.loadMorePatients({ field: openField, direction: dir, anchor })
       if (dir === 'after') {
+        scrollAdjustRef.current = -1  // signal SeekDropdown: don't reset scroll
         setResult(prev => ({ ...prev, rows: [...prev.rows, ...more.rows], hasAfter: more.hasMore }))
       } else {
         scrollAdjustRef.current += more.rows.length
@@ -453,6 +494,7 @@ export default function PatientSearch({ onBack }: Props) {
     setNom(row.nom ?? '')
     setPrenom(row.prenom ?? '')
     setCode(row.n_dossier ?? '')
+    setDdn(fmtDate(row.date_de_naissance))
     setOpenField(null)
     setResult(EMPTY)
     setShowResume(false)
@@ -479,7 +521,7 @@ export default function PatientSearch({ onBack }: Props) {
   }
 
   function reset() {
-    setNom(''); setPrenom(''); setCode('')
+    setNom(''); setPrenom(''); setCode(''); setDdn('')
     setResult(EMPTY); setOpenField(null); setPatient(null)
     setShowResume(false); setConsultData(null); setCursor(-1)
     nomRef.current?.focus()
@@ -605,18 +647,57 @@ export default function PatientSearch({ onBack }: Props) {
               </div>
             </div>
 
+            <div className="ps-field-group">
+              <label className="ps-label">Date de naissance</label>
+              <div className="ps-input-wrap">
+                <input
+                  className="ps-input ps-input--mono"
+                  autoComplete="off"
+                  placeholder="jj/mm/aaaa"
+                  value={ddn}
+                  onChange={e => {
+                    const isDeleting = (e.nativeEvent as InputEvent).inputType?.startsWith('delete') ?? false
+                    const v = formatDateInput(e.target.value, isDeleting)
+                    setDdn(v)
+                    setPatient(null)
+                    seek('ddn', v)
+                  }}
+                  onFocus={() => { setResult(EMPTY); seek('ddn', ddn) }}
+                  onKeyDown={onKey}
+                />
+                {open && openField === 'ddn' && (
+                  <SeekDropdown
+                    result={result} cursor={cursor}
+                    onPick={pick} onHover={setCursor}
+                    onScrollEdge={loadMore} scrollAdjustRef={scrollAdjustRef}
+                    header={['Naissance', 'Nom', 'Prénom', 'Code']}
+                    renderRow={r => (
+                      <>
+                        <span className="c-bold c-mono">{fmtDate(r.date_de_naissance)}</span>
+                        <span>{r.nom ?? '—'}</span>
+                        <span>{r.prenom ?? '—'}</span>
+                        <span className="c-dim c-mono">{r.n_dossier ?? '—'}</span>
+                      </>
+                    )}
+                  />
+                )}
+              </div>
+            </div>
+
             <div className="ps-form-meta">
               <div className="ps-meta-row">
-                <span className="ps-meta-label">Fiche notes</span>
-                <span className={`ps-notes-chip${patient?.notesstate ? ' on' : ''}`}>
-                  {patient ? (patient.notesstate ? 'Oui' : 'Non') : '—'}
-                </span>
-              </div>
-              <div className="ps-meta-row">
                 <span className="ps-meta-label">Âge</span>
-                <span className={`ps-age-val${ageError ? ' ps-age-val--err' : ''}`}>
-                  {ageText}
-                </span>
+                <div className="ps-age-row">
+                  <span className={`ps-age-val${ageError ? ' ps-age-val--err' : ''}`}>
+                    {ageText}
+                  </span>
+                  {patient && (
+                    <span
+                      className={`ps-notes-dot${patient.notesstate ? ' ps-notes-dot--yes' : ''}`}
+                      title="Fiche notes"
+                    />
+                  )}
+                </div>
               </div>
             </div>
 

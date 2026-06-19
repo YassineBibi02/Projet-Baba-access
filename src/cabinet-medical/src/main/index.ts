@@ -68,6 +68,9 @@ app.whenReady().then(() => {
   const SN  = "UPPER(TRIM(COALESCE(nom,'')))"
   const SP  = "UPPER(TRIM(COALESCE(prenom,'')))"
   const SND = "TRIM(COALESCE(n_dossier,''))"
+  // Sort key for Access date format M/D/YYYY → integer YYYYMMDD (e.g. 19851231) for correct chronological ORDER BY
+  const _r   = "SUBSTR(date_de_naissance,INSTR(date_de_naissance,'/')+1)"
+  const SDDN = `(CAST(SUBSTR(${_r},INSTR(${_r},'/')+1,4) AS INTEGER)*10000 + CAST(SUBSTR(date_de_naissance,1,INSTR(date_de_naissance,'/')-1) AS INTEGER)*100 + CAST(SUBSTR(${_r},1,INSTR(${_r},'/')-1) AS INTEGER))`
 
   // patients:search
   // - empty value  → first 2500 rows in trimmed alphabetical order (browse mode)
@@ -75,7 +78,7 @@ app.whenReady().then(() => {
   // Returns { rows, seekIndex, hasBefore, hasAfter }
   ipcMain.handle(
     'patients:search',
-    (_event, p: { field: 'nom' | 'prenom' | 'code'; value: string }) => {
+    (_event, p: { field: 'nom' | 'prenom' | 'code' | 'ddn'; value: string }) => {
       if (!db) return { rows: [], seekIndex: 0, hasBefore: false, hasAfter: false }
       const v = p.value.trim()
 
@@ -86,6 +89,8 @@ app.whenReady().then(() => {
           sql = `SELECT ${cols} FROM app_patients ORDER BY ${SN}, ${SP}, compteur LIMIT 2501`
         } else if (p.field === 'prenom') {
           sql = `SELECT ${cols} FROM app_patients ORDER BY ${SP}, ${SN}, compteur LIMIT 2501`
+        } else if (p.field === 'ddn') {
+          sql = `SELECT ${cols} FROM app_patients WHERE date_de_naissance IS NOT NULL AND TRIM(date_de_naissance) != '' ORDER BY ${SDDN}, compteur LIMIT 2501`
         } else {
           sql = `SELECT ${cols} FROM app_patients ORDER BY ${SND}, compteur LIMIT 2501`
         }
@@ -112,7 +117,7 @@ app.whenReady().then(() => {
       }
 
       if (p.field === 'prenom') {
-        const q = v.charAt(0).toUpperCase() + v.slice(1)
+        const q = v.toUpperCase()
         const before = (getStmt(
           `SELECT ${cols} FROM app_patients WHERE ${SP} < ? ORDER BY ${SP} DESC, ${SN} DESC, compteur DESC LIMIT 500`
         ).all(q) as unknown[]).reverse()
@@ -125,6 +130,21 @@ app.whenReady().then(() => {
           hasBefore: before.length === 500,
           hasAfter: after.length === 2000,
         }
+      }
+
+      // ddn: convert DD/MM[/YYYY] → Access M/D/YYYY LIKE pattern
+      if (p.field === 'ddn') {
+        const parts = v.split('/')
+        const dd = parseInt(parts[0] ?? '', 10)
+        const mm = parseInt(parts[1] ?? '', 10)
+        if (!dd || !mm) return { rows: [], seekIndex: 0, hasBefore: false, hasAfter: false }
+        const yyyy = parts[2] ? parts[2] : null
+        const pattern = yyyy ? `${mm}/${dd}/${yyyy}%` : `${mm}/${dd}/%`
+        const rows = getStmt(
+          `SELECT ${cols} FROM app_patients WHERE date_de_naissance LIKE ? ORDER BY ${SDDN}, compteur LIMIT 1001`
+        ).all(pattern) as unknown[]
+        const hasAfter = rows.length > 1000
+        return { rows: rows.slice(0, 1000), seekIndex: 0, hasBefore: false, hasAfter }
       }
 
       // code: substring match
@@ -140,7 +160,7 @@ app.whenReady().then(() => {
   ipcMain.handle(
     'patients:load-more',
     (_event, p: {
-      field: 'nom' | 'prenom' | 'code'
+      field: 'nom' | 'prenom' | 'code' | 'ddn'
       direction: 'before' | 'after'
       anchor: { nom?: string | null; prenom?: string | null; n_dossier?: string | null; compteur: number }
     }) => {

@@ -88,11 +88,11 @@ declare global {
     electron: ElectronAPI
     api: {
       searchPatients: (p: {
-        field: 'nom' | 'prenom' | 'code'
+        field: 'nom' | 'prenom' | 'code' | 'ddn'
         value: string
       }) => Promise<SearchResult>
       loadMorePatients: (p: {
-        field: 'nom' | 'prenom' | 'code'
+        field: 'nom' | 'prenom' | 'code' | 'ddn'
         direction: 'before' | 'after'
         anchor: { nom?: string | null; prenom?: string | null; n_dossier?: string | null; compteur: number }
       }) => Promise<{ rows: PatientRow[]; hasMore: boolean }>
