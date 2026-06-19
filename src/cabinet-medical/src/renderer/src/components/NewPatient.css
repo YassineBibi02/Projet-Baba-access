@@ -112,6 +112,7 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  position: relative;
 }
 
 .np-lookup .np-inp {
@@ -174,6 +175,45 @@
   flex: 1;
   min-width: calc(120px * var(--ui-scale));
 }
+/* ── Lookup dropdown ── */
+.np-lookup-dd {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  min-width: calc(160px * var(--ui-scale));
+  max-height: calc(200px * var(--ui-scale));
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-top: none;
+  border-radius: 0 0 3px 3px;
+  z-index: 200;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.np-lookup-dd-item {
+  padding: calc(5px * var(--ui-scale)) calc(9px * var(--ui-scale));
+  font-size: calc(13px * var(--ui-scale));
+  font-family: inherit;
+  color: #111;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-lookup-dd-item:hover {
+  background: #f0fdf4;
+  color: #065f46;
+}
+
+/* Lookup widths (input width + 18px button) */
+.np-lookup--xs   { width: calc(68px  * var(--ui-scale)); }
+.np-lookup--sm   { width: calc(128px * var(--ui-scale)); }
+.np-lookup--md   { width: calc(188px * var(--ui-scale)); }
+.np-lookup--lg   { width: calc(268px * var(--ui-scale)); }
+.np-lookup--grow { flex: 1; min-width: calc(80px * var(--ui-scale)); }
 
 .np-badge {
   display: inline-flex;

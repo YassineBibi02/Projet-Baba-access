@@ -14,6 +14,8 @@ interface PatientRow {
 interface SearchResult {
   rows: PatientRow[]
   seekIndex: number
+  hasBefore: boolean
+  hasAfter: boolean
 }
 
 interface PatientFull {
@@ -86,7 +88,7 @@ interface Props { onBack: () => void }
 
 const ROW_H_BASE = 36
 const VISIBLE_ROWS = 13
-const EMPTY: SearchResult = { rows: [], seekIndex: 0 }
+const EMPTY: SearchResult = { rows: [], seekIndex: 0, hasBefore: false, hasAfter: false }
 
 // Access exports dates as "M/D/YYYY H:MM:SS" (US month-first)
 function parseAccessDate(raw: string | null): Date | null {
@@ -133,14 +135,17 @@ interface DropProps {
   onHover: (i: number) => void
   header: [string, string, string, string]
   renderRow: (r: PatientRow) => React.ReactNode
+  onScrollEdge: (dir: 'before' | 'after') => void
+  scrollAdjustRef: React.RefObject<number>
 }
 
-function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow }: DropProps) {
-  const { rows, seekIndex } = result
+function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow, onScrollEdge, scrollAdjustRef }: DropProps) {
+  const { rows, seekIndex, hasBefore, hasAfter } = result
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const fromMouseRef = useRef(false)
   const seekAdjustedRef = useRef(false)
+  const edgeCooldownRef = useRef(false)
 
   const ROW_H = useMemo(() => {
     const s = parseFloat(
@@ -152,10 +157,21 @@ function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow }: Dr
   const CONTAINER_H = VISIBLE_ROWS * ROW_H
   const BUFFER = 5
 
-  // Pass 1: scroll to estimated position so the seek row enters the render window
+  // Pass 1: scroll to estimated position.
+  // If rows were prepended (scrollAdjustRef > 0), maintain current view instead.
   useEffect(() => {
     const el = listRef.current
     if (!el || rows.length === 0) return
+
+    const adj = scrollAdjustRef.current
+    if (adj > 0) {
+      scrollAdjustRef.current = 0
+      const delta = adj * ROW_H
+      el.scrollTop += delta
+      setScrollTop(prev => prev + delta)
+      return
+    }
+
     seekAdjustedRef.current = false
     const target = seekIndex * ROW_H
     el.scrollTop = target
@@ -188,6 +204,22 @@ function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow }: Dr
     else if (bottom > el.scrollTop + CONTAINER_H) el.scrollTop = bottom - CONTAINER_H
   }, [cursor, ROW_H, CONTAINER_H])
 
+  function handleScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget
+    const st = el.scrollTop
+    setScrollTop(st)
+    if (edgeCooldownRef.current) return
+    if (hasBefore && st < ROW_H * 3) {
+      edgeCooldownRef.current = true
+      onScrollEdge('before')
+      setTimeout(() => { edgeCooldownRef.current = false }, 600)
+    } else if (hasAfter && st + CONTAINER_H > el.scrollHeight - ROW_H * 3) {
+      edgeCooldownRef.current = true
+      onScrollEdge('after')
+      setTimeout(() => { edgeCooldownRef.current = false }, 600)
+    }
+  }
+
   const start   = Math.max(0, Math.floor(scrollTop / ROW_H) - BUFFER)
   const end     = Math.min(rows.length, Math.ceil((scrollTop + CONTAINER_H) / ROW_H) + BUFFER)
   const topH    = start * ROW_H
@@ -202,7 +234,7 @@ function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow }: Dr
         ref={listRef}
         className="ps-vlist"
         style={{ height: CONTAINER_H }}
-        onScroll={e => setScrollTop(e.currentTarget.scrollTop)}
+        onScroll={handleScroll}
       >
         {topH > 0 && <div style={{ height: topH }} />}
         {rows.slice(start, end).map((r, ri) => {
@@ -225,6 +257,7 @@ function SeekDropdown({ result, cursor, onPick, onHover, header, renderRow }: Dr
       <div className="ps-dd-count">
         {rows.length.toLocaleString('fr-FR')} patient{rows.length > 1 ? 's' : ''}
         {seekIndex > 0 && ` · position ${(seekIndex + 1).toLocaleString('fr-FR')}`}
+        {(hasBefore || hasAfter) && ' …'}
       </div>
     </div>
   )
@@ -372,6 +405,8 @@ export default function PatientSearch({ onBack }: Props) {
   const nomRef  = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const loadingMoreRef = useRef(false)
+  const scrollAdjustRef = useRef(0)
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -383,13 +418,35 @@ export default function PatientSearch({ onBack }: Props) {
 
   function seek(field: 'nom' | 'prenom' | 'code', value: string) {
     if (timerRef.current) clearTimeout(timerRef.current)
-    if (!value.trim()) { setResult(EMPTY); setOpenField(null); return }
     setOpenField(field)
     timerRef.current = setTimeout(async () => {
       const data = await window.api.searchPatients({ field, value: value.trim() })
       setResult(data)
       setCursor(-1)
     }, 40)
+  }
+
+  async function loadMore(dir: 'before' | 'after') {
+    if (loadingMoreRef.current || !openField) return
+    const anchor = dir === 'after' ? result.rows[result.rows.length - 1] : result.rows[0]
+    if (!anchor) return
+    loadingMoreRef.current = true
+    try {
+      const more = await window.api.loadMorePatients({ field: openField, direction: dir, anchor })
+      if (dir === 'after') {
+        setResult(prev => ({ ...prev, rows: [...prev.rows, ...more.rows], hasAfter: more.hasMore }))
+      } else {
+        scrollAdjustRef.current += more.rows.length
+        setResult(prev => ({
+          ...prev,
+          rows: [...more.rows, ...prev.rows],
+          seekIndex: prev.seekIndex + more.rows.length,
+          hasBefore: more.hasMore,
+        }))
+      }
+    } finally {
+      loadingMoreRef.current = false
+    }
   }
 
   const pick = useCallback(async (row: PatientRow) => {
@@ -462,11 +519,10 @@ export default function PatientSearch({ onBack }: Props) {
                 <input
                   ref={nomRef}
                   className="ps-input"
-                  autoFocus
                   autoComplete="off"
                   value={nom}
                   onChange={e => { setNom(e.target.value); setPatient(null); seek('nom', e.target.value) }}
-                  onFocus={() => nom.trim() && seek('nom', nom)}
+                  onFocus={() => seek('nom', nom)}
                   onKeyDown={onKey}
                 />
                 {nom && <button className="ps-clear" tabIndex={-1} onMouseDown={reset}>×</button>}
@@ -474,6 +530,7 @@ export default function PatientSearch({ onBack }: Props) {
                   <SeekDropdown
                     result={result} cursor={cursor}
                     onPick={pick} onHover={setCursor}
+                    onScrollEdge={loadMore} scrollAdjustRef={scrollAdjustRef}
                     header={['Nom', 'Prénom', 'Code', 'Naissance']}
                     renderRow={r => (
                       <>
@@ -496,13 +553,14 @@ export default function PatientSearch({ onBack }: Props) {
                   autoComplete="off"
                   value={prenom}
                   onChange={e => { setPrenom(e.target.value); setPatient(null); seek('prenom', e.target.value) }}
-                  onFocus={() => prenom.trim() && seek('prenom', prenom)}
+                  onFocus={() => seek('prenom', prenom)}
                   onKeyDown={onKey}
                 />
                 {open && openField === 'prenom' && (
                   <SeekDropdown
                     result={result} cursor={cursor}
                     onPick={pick} onHover={setCursor}
+                    onScrollEdge={loadMore} scrollAdjustRef={scrollAdjustRef}
                     header={['Prénom', 'Nom', 'Code', 'Naissance']}
                     renderRow={r => (
                       <>
@@ -525,13 +583,14 @@ export default function PatientSearch({ onBack }: Props) {
                   autoComplete="off"
                   value={code}
                   onChange={e => { setCode(e.target.value); setPatient(null); seek('code', e.target.value) }}
-                  onFocus={() => code.trim() && seek('code', code)}
+                  onFocus={() => seek('code', code)}
                   onKeyDown={onKey}
                 />
                 {open && openField === 'code' && (
                   <SeekDropdown
                     result={result} cursor={cursor}
                     onPick={pick} onHover={setCursor}
+                    onScrollEdge={loadMore} scrollAdjustRef={scrollAdjustRef}
                     header={['Code', 'Nom', 'Prénom', 'Naissance']}
                     renderRow={r => (
                       <>
@@ -587,27 +646,25 @@ export default function PatientSearch({ onBack }: Props) {
           </div>
         )}
 
-        {/* ── Consultations ── */}
-        {patient && consultData && (
-          <div className="ps-panel">
-            <div className="ps-panel-title">
-              Consultations
-              <span className="ps-panel-badge">{consultData.consultations.length}</span>
-            </div>
+        {/* ── Consultations ── always visible ── */}
+        <div className="ps-panel">
+          <div className="ps-panel-title">
+            Consultations
+            {consultData && <span className="ps-panel-badge">{consultData.consultations.length}</span>}
+          </div>
+          {!patient && (
+            <p className="ps-empty">Sélectionnez un patient pour afficher ses consultations.</p>
+          )}
+          {patient && !consultData && (
+            <p className="ps-empty">Chargement des consultations…</p>
+          )}
+          {patient && consultData && (
             <ConsultationList
               consultations={consultData.consultations}
               themes={consultData.themes}
             />
-          </div>
-        )}
-
-        {patient && !consultData && (
-          <p className="ps-empty">Chargement des consultations…</p>
-        )}
-
-        {!patient && (
-          <p className="ps-empty">Tapez dans un des champs pour chercher un patient.</p>
-        )}
+          )}
+        </div>
 
       </div>
 

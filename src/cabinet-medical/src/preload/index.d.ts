@@ -13,6 +13,8 @@ export interface PatientRow {
 export interface SearchResult {
   rows: PatientRow[]
   seekIndex: number
+  hasBefore: boolean
+  hasAfter: boolean
 }
 
 export interface PatientFull {
@@ -89,8 +91,15 @@ declare global {
         field: 'nom' | 'prenom' | 'code'
         value: string
       }) => Promise<SearchResult>
+      loadMorePatients: (p: {
+        field: 'nom' | 'prenom' | 'code'
+        direction: 'before' | 'after'
+        anchor: { nom?: string | null; prenom?: string | null; n_dossier?: string | null; compteur: number }
+      }) => Promise<{ rows: PatientRow[]; hasMore: boolean }>
       getPatient: (compteur: number) => Promise<PatientFull | null>
       getConsultations: (compteur: number) => Promise<ConsultData>
+      lookupSearch: (p: { source: string; value: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
+      lookupLoadMore: (p: { source: string; value: string; anchor: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
     }
   }
 }
