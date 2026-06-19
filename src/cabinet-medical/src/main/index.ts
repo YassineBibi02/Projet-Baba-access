@@ -61,242 +61,48 @@ app.whenReady().then(() => {
 
   openDatabase()
 
-  const cols = 'compteur, nom, prenom, n_dossier, date_de_naissance, ville, tel_domicile'
-
-  // Helpers — sort keys using TRIM so leading-space entries sort with their letter group.
-  // All ORDER BY / WHERE clauses use the same expression for consistency.
-  const SN  = "UPPER(TRIM(COALESCE(nom,'')))"
-  const SP  = "UPPER(TRIM(COALESCE(prenom,'')))"
-  const SND = "TRIM(COALESCE(n_dossier,''))"
-  // Sort key for Access date format M/D/YYYY → integer YYYYMMDD (e.g. 19851231) for correct chronological ORDER BY
-  const _r   = "SUBSTR(date_de_naissance,INSTR(date_de_naissance,'/')+1)"
-  const SDDN = `(CAST(SUBSTR(${_r},INSTR(${_r},'/')+1,4) AS INTEGER)*10000 + CAST(SUBSTR(date_de_naissance,1,INSTR(date_de_naissance,'/')-1) AS INTEGER)*100 + CAST(SUBSTR(${_r},1,INSTR(${_r},'/')-1) AS INTEGER))`
-
-  // patients:search
-  // - empty value  → first 2500 rows in trimmed alphabetical order (browse mode)
-  // - typed value  → 500 before seek + 2000 after seek
-  // Returns { rows, seekIndex, hasBefore, hasAfter }
+  // Returns { rows, seekIndex } where seekIndex is the first row >= the typed value.
+  // 500 rows before the seek position + 2000 after = up to 2500 rows, virtually scrolled.
   ipcMain.handle(
     'patients:search',
-    (_event, p: { field: 'nom' | 'prenom' | 'code' | 'ddn'; value: string }) => {
-      if (!db) return { rows: [], seekIndex: 0, hasBefore: false, hasAfter: false }
+    (_event, p: { field: 'nom' | 'prenom' | 'code'; value: string }) => {
+      if (!db || !p.value.trim()) return { rows: [], seekIndex: 0 }
       const v = p.value.trim()
+      const cols = 'compteur, nom, prenom, n_dossier, date_de_naissance, ville, tel_domicile'
 
-      // ── Browse mode (empty field) ──────────────────────────────────────────
-      if (!v) {
-        let sql: string
-        if (p.field === 'nom') {
-          sql = `SELECT ${cols} FROM app_patients ORDER BY ${SN}, ${SP}, compteur LIMIT 2501`
-        } else if (p.field === 'prenom') {
-          sql = `SELECT ${cols} FROM app_patients ORDER BY ${SP}, ${SN}, compteur LIMIT 2501`
-        } else if (p.field === 'ddn') {
-          sql = `SELECT ${cols} FROM app_patients WHERE date_de_naissance IS NOT NULL AND TRIM(date_de_naissance) != '' ORDER BY ${SDDN}, compteur LIMIT 2501`
-        } else {
-          sql = `SELECT ${cols} FROM app_patients ORDER BY ${SND}, compteur LIMIT 2501`
-        }
-        const rows = getStmt(sql).all() as unknown[]
-        const hasAfter = rows.length > 2500
-        return { rows: rows.slice(0, 2500), seekIndex: 0, hasBefore: false, hasAfter }
-      }
-
-      // ── Seek mode (typed value) ────────────────────────────────────────────
       if (p.field === 'nom') {
         const q = v.toUpperCase()
         const before = (getStmt(
-          `SELECT ${cols} FROM app_patients WHERE ${SN} < ? ORDER BY ${SN} DESC, ${SP} DESC, compteur DESC LIMIT 500`
+          `SELECT ${cols} FROM app_patients WHERE nom < ? ORDER BY nom DESC, prenom DESC LIMIT 500`
         ).all(q) as unknown[]).reverse()
         const after = getStmt(
-          `SELECT ${cols} FROM app_patients WHERE ${SN} >= ? ORDER BY ${SN}, ${SP}, compteur LIMIT 2000`
-        ).all(q) as unknown[]
-        return {
-          rows: [...before, ...after],
-          seekIndex: before.length,
-          hasBefore: before.length === 500,
-          hasAfter: after.length === 2000,
-        }
+          `SELECT ${cols} FROM app_patients WHERE nom >= ? ORDER BY nom, prenom LIMIT 2000`
+        ).all(q)
+        return { rows: [...before, ...after], seekIndex: before.length }
       }
 
       if (p.field === 'prenom') {
-        const q = v.toUpperCase()
+        const q = v.charAt(0).toUpperCase() + v.slice(1)
         const before = (getStmt(
-          `SELECT ${cols} FROM app_patients WHERE ${SP} < ? ORDER BY ${SP} DESC, ${SN} DESC, compteur DESC LIMIT 500`
+          `SELECT ${cols} FROM app_patients WHERE prenom < ? ORDER BY prenom DESC, nom DESC LIMIT 500`
         ).all(q) as unknown[]).reverse()
         const after = getStmt(
-          `SELECT ${cols} FROM app_patients WHERE ${SP} >= ? ORDER BY ${SP}, ${SN}, compteur LIMIT 2000`
-        ).all(q) as unknown[]
-        return {
-          rows: [...before, ...after],
-          seekIndex: before.length,
-          hasBefore: before.length === 500,
-          hasAfter: after.length === 2000,
-        }
+          `SELECT ${cols} FROM app_patients WHERE prenom >= ? ORDER BY prenom, nom LIMIT 2000`
+        ).all(q)
+        return { rows: [...before, ...after], seekIndex: before.length }
       }
 
-      // ddn: convert DD/MM[/YYYY] → Access M/D/YYYY LIKE pattern
-      if (p.field === 'ddn') {
-        const parts = v.split('/')
-        const dd = parseInt(parts[0] ?? '', 10)
-        const mm = parseInt(parts[1] ?? '', 10)
-        if (!dd || !mm) return { rows: [], seekIndex: 0, hasBefore: false, hasAfter: false }
-        const yyyy = parts[2] ? parts[2] : null
-        const pattern = yyyy ? `${mm}/${dd}/${yyyy}%` : `${mm}/${dd}/%`
-        const rows = getStmt(
-          `SELECT ${cols} FROM app_patients WHERE date_de_naissance LIKE ? ORDER BY ${SDDN}, compteur LIMIT 1001`
-        ).all(pattern) as unknown[]
-        const hasAfter = rows.length > 1000
-        return { rows: rows.slice(0, 1000), seekIndex: 0, hasBefore: false, hasAfter }
-      }
-
-      // code: substring match
+      // code: substring match, no natural seek boundary
       const rows = getStmt(
-        `SELECT ${cols} FROM app_patients WHERE n_dossier LIKE ? ORDER BY ${SND}, compteur LIMIT 1000`
-      ).all('%' + v + '%') as unknown[]
-      return { rows, seekIndex: 0, hasBefore: false, hasAfter: rows.length === 1000 }
-    }
-  )
-
-  // patients:load-more — cursor-based pagination using trimmed sort keys
-  // Returns { rows, hasMore }
-  ipcMain.handle(
-    'patients:load-more',
-    (_event, p: {
-      field: 'nom' | 'prenom' | 'code' | 'ddn'
-      direction: 'before' | 'after'
-      anchor: { nom?: string | null; prenom?: string | null; n_dossier?: string | null; compteur: number }
-    }) => {
-      if (!db) return { rows: [], hasMore: false }
-      const LIMIT = 501
-
-      if (p.field === 'nom') {
-        const n  = (p.anchor.nom  ?? '').trim()
-        const pr = (p.anchor.prenom ?? '').trim()
-        const c  = p.anchor.compteur
-        if (p.direction === 'after') {
-          const rows = getStmt(`
-            SELECT ${cols} FROM app_patients
-            WHERE ${SN} > ?
-              OR (${SN} = ? AND ${SP} > ?)
-              OR (${SN} = ? AND ${SP} = ? AND compteur > ?)
-            ORDER BY ${SN}, ${SP}, compteur LIMIT ${LIMIT}
-          `).all(n, n, pr, n, pr, c) as unknown[]
-          return { rows: rows.slice(0, 500), hasMore: rows.length === LIMIT }
-        } else {
-          const rows = (getStmt(`
-            SELECT ${cols} FROM app_patients
-            WHERE ${SN} < ?
-              OR (${SN} = ? AND ${SP} < ?)
-              OR (${SN} = ? AND ${SP} = ? AND compteur < ?)
-            ORDER BY ${SN} DESC, ${SP} DESC, compteur DESC LIMIT ${LIMIT}
-          `).all(n, n, pr, n, pr, c) as unknown[]).reverse()
-          const hasMore = rows.length === LIMIT
-          return { rows: rows.slice(hasMore ? 1 : 0), hasMore }
-        }
-      }
-
-      if (p.field === 'prenom') {
-        const pr = (p.anchor.prenom ?? '').trim()
-        const n  = (p.anchor.nom  ?? '').trim()
-        const c  = p.anchor.compteur
-        if (p.direction === 'after') {
-          const rows = getStmt(`
-            SELECT ${cols} FROM app_patients
-            WHERE ${SP} > ?
-              OR (${SP} = ? AND ${SN} > ?)
-              OR (${SP} = ? AND ${SN} = ? AND compteur > ?)
-            ORDER BY ${SP}, ${SN}, compteur LIMIT ${LIMIT}
-          `).all(pr, pr, n, pr, n, c) as unknown[]
-          return { rows: rows.slice(0, 500), hasMore: rows.length === LIMIT }
-        } else {
-          const rows = (getStmt(`
-            SELECT ${cols} FROM app_patients
-            WHERE ${SP} < ?
-              OR (${SP} = ? AND ${SN} < ?)
-              OR (${SP} = ? AND ${SN} = ? AND compteur < ?)
-            ORDER BY ${SP} DESC, ${SN} DESC, compteur DESC LIMIT ${LIMIT}
-          `).all(pr, pr, n, pr, n, c) as unknown[]).reverse()
-          const hasMore = rows.length === LIMIT
-          return { rows: rows.slice(hasMore ? 1 : 0), hasMore }
-        }
-      }
-
-      // code field
-      const nd = (p.anchor.n_dossier ?? '').trim()
-      const c  = p.anchor.compteur
-      if (p.direction === 'after') {
-        const rows = getStmt(`
-          SELECT ${cols} FROM app_patients
-          WHERE ${SND} > ?
-            OR (${SND} = ? AND compteur > ?)
-          ORDER BY ${SND}, compteur LIMIT ${LIMIT}
-        `).all(nd, nd, c) as unknown[]
-        return { rows: rows.slice(0, 500), hasMore: rows.length === LIMIT }
-      } else {
-        const rows = (getStmt(`
-          SELECT ${cols} FROM app_patients
-          WHERE ${SND} < ?
-            OR (${SND} = ? AND compteur < ?)
-          ORDER BY ${SND} DESC, compteur DESC LIMIT ${LIMIT}
-        `).all(nd, nd, c) as unknown[]).reverse()
-        const hasMore = rows.length === LIMIT
-        return { rows: rows.slice(hasMore ? 1 : 0), hasMore }
-      }
+        `SELECT ${cols} FROM app_patients WHERE n_dossier LIKE ? ORDER BY n_dossier LIMIT 1000`
+      ).all('%' + v + '%')
+      return { rows, seekIndex: 0 }
     }
   )
 
   ipcMain.handle('patients:get', (_event, compteur: number) => {
     if (!db) return null
     return getStmt('SELECT * FROM app_patients WHERE compteur = ?').get(compteur) ?? null
-  })
-
-  // Shared source definitions for lookup dropdowns — distinct values per column
-  const LOOKUP_SOURCES: Record<string, string> = {
-    lieu_naissance:     `SELECT DISTINCT TRIM(lieu_de_naissance)      AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(lieu_de_naissance,''))      != ''`,
-    adresse:            `SELECT DISTINCT TRIM(adresse)                AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(adresse,''))                != ''`,
-    ville:              `SELECT DISTINCT TRIM(ville)                  AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(ville,''))                  != ''`,
-    code_ville:         `SELECT DISTINCT TRIM(code_ville)             AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(code_ville,''))             != ''`,
-    gouvernorat:        `SELECT DISTINCT TRIM(gouvernorat_ou_pays)    AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(gouvernorat_ou_pays,''))    != ''`,
-    profession:         `SELECT DISTINCT TRIM(profession)             AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(profession,''))             != ''`,
-    employeur:          `SELECT DISTINCT TRIM(employeur)              AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(employeur,''))              != ''`,
-    activite_employeur: `SELECT DISTINCT TRIM(activite_employeur)    AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(activite_employeur,''))    != ''`,
-    adresse_prof:       `SELECT DISTINCT TRIM(adresse_profession)    AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(adresse_profession,''))    != ''`,
-    ville_prof:         `SELECT DISTINCT TRIM(ville_profession)      AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(ville_profession,''))      != ''`,
-    code_ville_prof:    `SELECT DISTINCT TRIM(code_ville_profession) AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(code_ville_profession,'')) != ''`,
-    proche:             `SELECT DISTINCT TRIM(proche)                 AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(proche,''))                 != ''`,
-    statut:             `SELECT DISTINCT TRIM(statut)                 AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(statut,''))                 != ''`,
-    situation_famille:  `SELECT DISTINCT TRIM(situation_de_famille)  AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(situation_de_famille,''))  != ''`,
-    sexe:               `SELECT DISTINCT TRIM(sexe)                   AS val FROM raw_t_fiche_administrative WHERE TRIM(COALESCE(sexe,''))                   != ''`,
-  }
-
-  // lookup:search — returns first 2500 distinct values alphabetically, plus hasAfter flag
-  ipcMain.handle('lookup:search', (_event, p: { source: string; value: string }) => {
-    if (!db) return { vals: [], hasAfter: false }
-    const baseSql = LOOKUP_SOURCES[p.source]
-    if (!baseSql) return { vals: [], hasAfter: false }
-    const v = p.value.trim()
-    const LIMIT = 2501
-    let rows: { val: string }[]
-    if (v) {
-      rows = getStmt(`SELECT val FROM (${baseSql}) WHERE val LIKE ? ORDER BY val LIMIT ${LIMIT}`).all('%' + v + '%') as { val: string }[]
-    } else {
-      rows = getStmt(`SELECT val FROM (${baseSql}) ORDER BY val LIMIT ${LIMIT}`).all() as { val: string }[]
-    }
-    return { vals: rows.slice(0, 2500).map(r => r.val), hasAfter: rows.length === LIMIT }
-  })
-
-  // lookup:load-more — cursor-based: returns next 500 values after anchor
-  ipcMain.handle('lookup:load-more', (_event, p: { source: string; value: string; anchor: string }) => {
-    if (!db) return { vals: [], hasAfter: false }
-    const baseSql = LOOKUP_SOURCES[p.source]
-    if (!baseSql) return { vals: [], hasAfter: false }
-    const v = p.value.trim()
-    const LIMIT = 501
-    let rows: { val: string }[]
-    if (v) {
-      rows = getStmt(`SELECT val FROM (${baseSql}) WHERE val LIKE ? AND val > ? ORDER BY val LIMIT ${LIMIT}`).all('%' + v + '%', p.anchor) as { val: string }[]
-    } else {
-      rows = getStmt(`SELECT val FROM (${baseSql}) WHERE val > ? ORDER BY val LIMIT ${LIMIT}`).all(p.anchor) as { val: string }[]
-    }
-    return { vals: rows.slice(0, 500).map(r => r.val), hasAfter: rows.length === LIMIT }
   })
 
   ipcMain.handle('patients:consultations', (_event, compteur: number) => {
