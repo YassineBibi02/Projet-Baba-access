@@ -117,9 +117,8 @@
   top: 100%;
   left: 0;
   right: 0;
-  min-width: calc(160px * var(--ui-scale));
   max-height: calc(200px * var(--ui-scale));
-  overflow-y: auto;
+  overflow-y: scroll;
   background: #fff;
   border: 1px solid #d1d5db;
   border-top: none;
@@ -127,6 +126,11 @@
   z-index: 200;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
 }
+
+.np-lookup-dd::-webkit-scrollbar { width: 6px; }
+.np-lookup-dd::-webkit-scrollbar-track { background: #f3f4f6; }
+.np-lookup-dd::-webkit-scrollbar-thumb { background: #9ca3af; border-radius: 3px; }
+.np-lookup-dd::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
 .np-lookup-dd-item {
   padding: calc(5px * var(--ui-scale)) calc(9px * var(--ui-scale));
