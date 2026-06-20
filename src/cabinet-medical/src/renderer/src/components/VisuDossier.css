@@ -1,0 +1,251 @@
+/* ── Configurable parameters ───────────────────────────────────────────── */
+/* Change --vd-min-rows to set how many rows are always visible per column */
+.vd-shell {
+  --vd-min-rows: 7;
+  --vd-row-h: calc(41px * var(--ui-scale));
+}
+
+/* ── Shell ─────────────────────────────────────────────────────────────── */
+.vd-shell {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255,255,255,0.12), transparent 24%),
+    radial-gradient(circle at 82% 78%, rgba(209,250,229,0.11), transparent 28%),
+    linear-gradient(135deg, #14322a 0%, #1d4a3a 48%, #234f3f 100%);
+}
+
+/* ── Topbar ────────────────────────────────────────────────────────────── */
+.vd-topbar {
+  flex-shrink: 0;
+  background: transparent;
+  border-bottom: 1px solid rgba(255,255,255,0.22);
+}
+
+.vd-topbar-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 calc(24px * var(--ui-scale));
+  height: calc(46px * var(--ui-scale));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vd-title {
+  margin: 0;
+  font-size: calc(20px * var(--ui-scale));
+  font-weight: 700;
+  color: #f7f7f7;
+  letter-spacing: 0.4px;
+}
+
+.vd-topbar-btns {
+  display: flex;
+  gap: calc(8px * var(--ui-scale));
+}
+
+.vd-btn {
+  border: 1px solid rgba(255,255,255,0.22);
+  background: #fff;
+  color: #000;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 600;
+  padding: calc(5px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.1s;
+}
+.vd-btn:hover { background: #d3d3d3; }
+.vd-btn:focus-visible { outline: none; }
+
+/* ── Workspace ─────────────────────────────────────────────────────────── */
+.vd-workspace {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(16px * var(--ui-scale)) calc(16px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  box-sizing: border-box;
+}
+
+.vd-workspace-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(12px * var(--ui-scale));
+}
+
+/* ── Patient header card ───────────────────────────────────────────────── */
+.vd-patient-card {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  padding: calc(12px * var(--ui-scale)) calc(18px * var(--ui-scale));
+  display: flex;
+  align-items: center;
+  gap: calc(20px * var(--ui-scale));
+}
+
+.vd-patient-name,
+.vd-patient-code {
+  font-size: calc(15px * var(--ui-scale));
+  font-weight: 500;
+  color: #111;
+}
+
+.vd-loading {
+  color: rgba(255,255,255,0.7);
+  font-size: calc(15px * var(--ui-scale));
+  padding: calc(30px * var(--ui-scale));
+  text-align: center;
+}
+
+/* ── Outer card wrapping all 5 columns ─────────────────────────────────── */
+/* max-height caps the whole block; overflow:hidden clips so columns scroll */
+.vd-columns-card {
+  background: #fff;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  display: flex;
+  align-items: stretch;
+  gap: calc(20px * var(--ui-scale));
+  padding: calc(20px * var(--ui-scale));
+  max-height: calc(100vh - calc(210px  * var(--ui-scale)));
+  overflow: hidden;
+}
+
+/* ── Column wrapper (title label + table card) ─────────────────────────── */
+.vd-col-wrap {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(6px * var(--ui-scale));
+}
+
+.vd-col-title {
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #000;
+  padding-left: calc(2px * var(--ui-scale));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+/* ── Individual table card ─────────────────────────────────────────────── */
+/* flex:1 fills col-wrap height; overflow-y:auto scrolls when content overflows */
+.vd-column {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 2px solid #9ca3af;
+  border-radius: 6px;
+  overflow-y: auto;
+}
+
+.vd-column::-webkit-scrollbar { width: calc(6px * var(--ui-scale)); }
+.vd-column::-webkit-scrollbar-track { background: transparent; }
+.vd-column::-webkit-scrollbar-thumb {
+  background: #c4c4c4;
+  border-radius: calc(3px * var(--ui-scale));
+}
+.vd-column::-webkit-scrollbar-thumb:hover { background: #a0a0a0; }
+
+/* min height = --vd-min-rows × --vd-row-h */
+.vd-col-body {
+  min-height: calc(var(--vd-min-rows) * var(--vd-row-h));
+}
+
+/* ── Entries: number | separator | date ─────────────────────────────────── */
+.vd-entry {
+  display: flex;
+  align-items: stretch;
+  user-select: none;
+}
+
+.vd-entry--clickable { cursor: pointer; }
+.vd-entry--clickable:hover { background: #eef7f2; }
+
+.vd-entry-num {
+  font-size: calc(15px * var(--ui-scale));
+  font-weight: 500;
+  color: #111;
+  padding: calc(10px * var(--ui-scale)) 0;
+  flex: 0 0 calc(48px * var(--ui-scale));
+  width: calc(48px * var(--ui-scale));
+  text-align: center;
+  border-right: 1px solid #d1d5db;
+  overflow: hidden;
+}
+
+.vd-entry-date {
+  font-size: calc(15px * var(--ui-scale));
+  font-weight: 500;
+  color: #111;
+  padding: calc(10px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  white-space: nowrap;
+  flex: 1;
+}
+
+/* ── Footer ────────────────────────────────────────────────────────────── */
+.vd-footer {
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.22);
+  border-top: 1px solid rgba(255,255,255,0.18);
+}
+
+.vd-footer-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: calc(6px * var(--ui-scale)) calc(24px * var(--ui-scale));
+  display: flex;
+  flex-direction: column;
+  gap: calc(4px * var(--ui-scale));
+}
+
+.vd-footer-row-fill {
+  display: flex;
+  gap: calc(4px * var(--ui-scale));
+}
+.vd-footer-row-fill .vd-footer-btn { flex: 1; }
+
+.vd-footer-row-center {
+  display: flex;
+  gap: calc(4px * var(--ui-scale));
+  justify-content: center;
+}
+
+.vd-footer-btn {
+  font-family: inherit;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 600;
+  padding: calc(5px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 3px;
+  background: #fff;
+  color: #000;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+.vd-footer-btn:hover:not(:disabled) { background: #d3d3d3; }
+.vd-footer-btn:focus-visible { outline: none; }
+.vd-footer-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

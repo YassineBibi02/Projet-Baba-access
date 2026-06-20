@@ -388,21 +388,24 @@ app.whenReady().then(() => {
     }
   })
 
-  // consultation:delete — remove consultation and all its themes
+  // consultation:delete — remove consultation (by PK) and all its themes (by composite)
   ipcMain.handle('consultation:delete', (_event, data: {
     compteur: number
     numeroDossier: string
     numeroConsultation: string
+    compteurConsultation: number | string
   }) => {
     if (!db) return { ok: false, error: 'No database' }
     try {
       const cStr = String(data.compteur)
+      // themes have no global PK tied to the consultation — composite is safe here
       db.prepare(
         'DELETE FROM raw_t_consultations_themes WHERE compteur = ? AND numero_dossier_medical = ? AND numero_consultation = ?'
       ).run(cStr, data.numeroDossier, data.numeroConsultation)
+      // use the actual primary key to guarantee exactly one row is deleted
       db.prepare(
-        'DELETE FROM raw_t_consultations WHERE compteur = ? AND numero_dossier_medical = ? AND numero_consultation = ?'
-      ).run(cStr, data.numeroDossier, data.numeroConsultation)
+        'DELETE FROM raw_t_consultations WHERE CAST(compteur_consultation AS INTEGER) = ?'
+      ).run(Number(data.compteurConsultation))
       return { ok: true }
     } catch (e: unknown) {
       return { ok: false, error: String(e) }
@@ -541,6 +544,65 @@ app.whenReady().then(() => {
     } catch (e: unknown) {
       return { ok: false, error: String(e) }
     }
+  })
+
+  // dossier:load — all 5 data types for Visu Dossier view
+  ipcMain.handle('dossier:load', (_event, compteur: number) => {
+    if (!db) return { consultations: [], ordonnances: [], courriers: [], examens: [], actes: [] }
+    const cStr = String(compteur)
+
+    const consultations = getStmt(`
+      SELECT c.numero_dossier_medical, c.numero_consultation, c.date_consultation,
+             d.code_dossier_medical, d.titre_dossier_medical
+      FROM app_consultations c
+      LEFT JOIN app_dossiers d
+        ON d.compteur = c.compteur AND d.numero_dossier_medical = c.numero_dossier_medical
+      WHERE c.compteur = ?
+      ORDER BY CAST(c.numero_consultation AS INTEGER) ASC
+      LIMIT 2000
+    `).all(cStr)
+
+    const ordonnances = getStmt(`
+      SELECT CAST(numero_dossier_medical AS INTEGER) AS numero_dossier_medical,
+             CAST(numero_consultation AS INTEGER) AS numero_consultation,
+             CAST(numero_ordonnance AS INTEGER) AS numero_ordonnance,
+             date_ordonnance
+      FROM raw_t_mv_ordonnance
+      WHERE CAST(compteur AS INTEGER) = ?
+      ORDER BY CAST(numero_ordonnance AS INTEGER) ASC
+      LIMIT 2000
+    `).all(compteur)
+
+    const courriers = getStmt(`
+      SELECT CAST(numero_dossier_medical AS INTEGER) AS numero_dossier_medical,
+             CAST(numero_consultation AS INTEGER) AS numero_consultation,
+             CAST(numero_rapport AS INTEGER) AS numero_rapport,
+             date_rapport, titre_rapport
+      FROM raw_t_rapo_rapport
+      WHERE CAST(compteur AS INTEGER) = ?
+      ORDER BY CAST(numero_rapport AS INTEGER) ASC
+      LIMIT 2000
+    `).all(compteur)
+
+    const examens = getStmt(`
+      SELECT numero_dossier_medical, numero_consultation,
+             numero_examens, date_examens, titre_examens
+      FROM app_examens
+      WHERE compteur = ?
+      ORDER BY CAST(numero_examens AS INTEGER) ASC
+      LIMIT 2000
+    `).all(cStr)
+
+    const actes = getStmt(`
+      SELECT numero_dossier_medical, numero_consultation,
+             numero_acte, date_actes_et_honoraires, total_actes
+      FROM app_actes_honoraires
+      WHERE compteur = ?
+      ORDER BY CAST(numero_acte AS INTEGER) ASC
+      LIMIT 2000
+    `).all(compteur)
+
+    return { consultations, ordonnances, courriers, examens, actes }
   })
 
   createWindow()

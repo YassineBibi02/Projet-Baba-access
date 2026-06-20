@@ -1,5 +1,5 @@
 :root {
-  --ui-scale: 1.25;
+  --ui-scale: 1;
 
   --font-base: calc(14px * var(--ui-scale));
   --font-title: calc(32px * var(--ui-scale));

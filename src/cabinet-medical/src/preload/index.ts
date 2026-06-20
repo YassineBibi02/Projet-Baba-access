@@ -33,7 +33,8 @@ const api = {
   deletePatient: (compteur: number) => ipcRenderer.invoke('patients:delete', compteur),
   updatePatient: (compteur: number, data: Record<string, string | number | null>) =>
     ipcRenderer.invoke('patients:update', compteur, data),
-  createPatient: (data: Record<string, string | number | null>) => ipcRenderer.invoke('patients:create', data)
+  createPatient: (data: Record<string, string | number | null>) => ipcRenderer.invoke('patients:create', data),
+  loadDossier: (compteur: number) => ipcRenderer.invoke('dossier:load', compteur)
 }
 
 if (process.contextIsolated) {

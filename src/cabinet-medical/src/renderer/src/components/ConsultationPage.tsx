@@ -290,8 +290,9 @@ export default function ConsultationPage({
     try {
       const r = await window.api.deleteConsultation({
         compteur,
-        numeroDossier:      String(currentConsult.numero_dossier_medical),
-        numeroConsultation: String(currentConsult.numero_consultation)
+        numeroDossier:        String(currentConsult.numero_dossier_medical),
+        numeroConsultation:   String(currentConsult.numero_consultation),
+        compteurConsultation: currentConsult.compteur_consultation
       })
       if (!r.ok) { alert(`Erreur: ${r.error}`); return }
       const newList = consultations.filter((_: any, i: number) => i !== currentIndex)

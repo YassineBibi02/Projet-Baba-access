@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import './PatientSearch.css'
 import ConsultationPage from './ConsultationPage'
+import VisuDossier from './VisuDossier'
 
 interface PatientRow {
   compteur: number
@@ -455,6 +456,7 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
     numeroConsultation: number
     autoNew: boolean
   } | null>(null)
+  const [openVisuDossier, setOpenVisuDossier] = useState(false)
 
   const nomRef  = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
@@ -543,6 +545,24 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
   }
 
   const open = openField !== null && result.rows.length > 0
+
+  // ── VisuDossier overlay ──────────────────────────────────────────────────────
+  if (patient && openVisuDossier) {
+    return (
+      <VisuDossier
+        patient={{
+          compteur: patient.compteur,
+          nom: patient.nom,
+          prenom: patient.prenom,
+          n_dossier: patient.n_dossier,
+          date_de_naissance: patient.date_de_naissance,
+          notesstate: patient.notesstate,
+        }}
+        onBack={() => setOpenVisuDossier(false)}
+        onMenu={onBack}
+      />
+    )
+  }
 
   // ── ConsultationPage overlay ─────────────────────────────────────────────────
   if (patient && openConsult) {
@@ -799,7 +819,11 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
               disabled={!patient}
               onClick={() => patient && onOpenAdmin?.(patient.compteur)}
             >Administrative</button>
-            <button className="ps-footer-btn" disabled>Visu Dossier</button>
+            <button
+              className="ps-footer-btn"
+              disabled={!patient}
+              onClick={() => patient && setOpenVisuDossier(true)}
+            >Visu Dossier</button>
             <button
               className="ps-footer-btn"
               disabled={!patient}

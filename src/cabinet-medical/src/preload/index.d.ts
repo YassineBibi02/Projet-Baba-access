@@ -83,6 +83,53 @@ export interface ConsultData {
   themes: ThemeRow[]
 }
 
+export interface DossierConsultation {
+  numero_dossier_medical: number | null
+  numero_consultation: number | null
+  date_consultation: string | null
+  code_dossier_medical: string | null
+  titre_dossier_medical: string | null
+}
+
+export interface DossierOrdonnance {
+  numero_dossier_medical: number | null
+  numero_consultation: number | null
+  numero_ordonnance: number | null
+  date_ordonnance: string | null
+}
+
+export interface DossierCourrier {
+  numero_dossier_medical: number | null
+  numero_consultation: number | null
+  numero_rapport: number | null
+  date_rapport: string | null
+  titre_rapport: string | null
+}
+
+export interface DossierExamen {
+  numero_dossier_medical: number | null
+  numero_consultation: number | null
+  numero_examens: number | null
+  date_examens: string | null
+  titre_examens: string | null
+}
+
+export interface DossierActe {
+  numero_dossier_medical: number | null
+  numero_consultation: number | null
+  numero_acte: number | null
+  date_actes_et_honoraires: string | null
+  total_actes: string | null
+}
+
+export interface DossierData {
+  consultations: DossierConsultation[]
+  ordonnances: DossierOrdonnance[]
+  courriers: DossierCourrier[]
+  examens: DossierExamen[]
+  actes: DossierActe[]
+}
+
 export interface ConsultationByDateRow {
   compteur_consultation: number
   compteur: number
@@ -155,7 +202,7 @@ declare global {
         compteur: number; numeroDossier: string; titreTheme: string; contenuTheme: string
       }) => Promise<{ ok: boolean; numeroConsultation?: number; compteurConsultation?: number; error?: string }>
       deleteConsultation: (data: {
-        compteur: number; numeroDossier: string; numeroConsultation: string
+        compteur: number; numeroDossier: string; numeroConsultation: string; compteurConsultation: number | string
       }) => Promise<{ ok: boolean; error?: string }>
       deleteConsultationTheme: (compteurTheme: number) => Promise<{ ok: boolean; error?: string }>
       lookupSearch: (p: { source: string; value: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
@@ -164,6 +211,7 @@ declare global {
       deletePatient: (compteur: number) => Promise<{ ok: boolean; error?: string }>
       updatePatient: (compteur: number, data: Record<string, string | number | null>) => Promise<{ ok: boolean; error?: string }>
       createPatient: (data: Record<string, string | number | null>) => Promise<{ ok: boolean; compteur?: number; error?: string }>
+      loadDossier: (compteur: number) => Promise<DossierData>
     }
   }
 }
