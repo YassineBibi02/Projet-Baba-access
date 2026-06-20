@@ -61,42 +61,131 @@ app.whenReady().then(() => {
 
   openDatabase()
 
-  // Returns { rows, seekIndex } where seekIndex is the first row >= the typed value.
-  // 500 rows before the seek position + 2000 after = up to 2500 rows, virtually scrolled.
   ipcMain.handle(
     'patients:search',
-    (_event, p: { field: 'nom' | 'prenom' | 'code'; value: string }) => {
-      if (!db || !p.value.trim()) return { rows: [], seekIndex: 0 }
-      const v = p.value.trim()
+    (_event, p: { field: 'nom' | 'prenom' | 'code' | 'ddn'; value: string }) => {
+      if (!db) return { rows: [], seekIndex: 0, hasBefore: false, hasAfter: false }
+
+      const v    = p.value.trim()
       const cols = 'compteur, nom, prenom, n_dossier, date_de_naissance, ville, tel_domicile'
 
+      // Access M/D/YYYY → sort integer YYYYMMDD
+      const _r   = "SUBSTR(date_de_naissance,INSTR(date_de_naissance,'/')+1)"
+      const SDDN = `(CAST(SUBSTR(${_r},INSTR(${_r},'/')+1,4) AS INTEGER)*10000 + CAST(SUBSTR(date_de_naissance,1,INSTR(date_de_naissance,'/')-1) AS INTEGER)*100 + CAST(SUBSTR(${_r},1,INSTR(${_r},'/')-1) AS INTEGER))`
+      // n_dossier "XXXX/YY" → sort by numeric part before '/'
+      const SCODE = `CAST(CASE WHEN INSTR(n_dossier,'/') > 0 THEN SUBSTR(n_dossier,1,INSTR(n_dossier,'/')-1) ELSE n_dossier END AS INTEGER)`
+
+      if (!v) {
+        // Browse mode — clicking an empty field opens the full sorted list
+        if (p.field === 'nom') {
+          const rows = getStmt(`SELECT ${cols} FROM app_patients ORDER BY UPPER(TRIM(nom)), UPPER(TRIM(prenom)) LIMIT 2501`).all()
+          const hasAfter = rows.length > 2500
+          return { rows: (rows as unknown[]).slice(0, 2500), seekIndex: 0, hasBefore: false, hasAfter }
+        }
+        if (p.field === 'prenom') {
+          const rows = getStmt(`SELECT ${cols} FROM app_patients ORDER BY UPPER(TRIM(prenom)), UPPER(TRIM(nom)) LIMIT 2501`).all()
+          const hasAfter = rows.length > 2500
+          return { rows: (rows as unknown[]).slice(0, 2500), seekIndex: 0, hasBefore: false, hasAfter }
+        }
+        if (p.field === 'code') {
+          const rows = getStmt(`SELECT ${cols} FROM app_patients WHERE n_dossier IS NOT NULL AND TRIM(n_dossier) != '' ORDER BY ${SCODE}, n_dossier LIMIT 2501`).all()
+          const hasAfter = rows.length > 2500
+          return { rows: (rows as unknown[]).slice(0, 2500), seekIndex: 0, hasBefore: false, hasAfter }
+        }
+        if (p.field === 'ddn') {
+          const rows = getStmt(`SELECT ${cols} FROM app_patients WHERE date_de_naissance IS NOT NULL AND TRIM(date_de_naissance) != '' ORDER BY ${SDDN}, compteur LIMIT 2501`).all()
+          const hasAfter = rows.length > 2500
+          return { rows: (rows as unknown[]).slice(0, 2500), seekIndex: 0, hasBefore: false, hasAfter }
+        }
+        return { rows: [], seekIndex: 0, hasBefore: false, hasAfter: false }
+      }
+
+      // Seek modes
       if (p.field === 'nom') {
-        const q = v.toUpperCase()
+        const q      = v.toUpperCase()
         const before = (getStmt(
-          `SELECT ${cols} FROM app_patients WHERE nom < ? ORDER BY nom DESC, prenom DESC LIMIT 500`
+          `SELECT ${cols} FROM app_patients WHERE UPPER(TRIM(nom)) < ? ORDER BY UPPER(TRIM(nom)) DESC, UPPER(TRIM(prenom)) DESC LIMIT 500`
         ).all(q) as unknown[]).reverse()
-        const after = getStmt(
-          `SELECT ${cols} FROM app_patients WHERE nom >= ? ORDER BY nom, prenom LIMIT 2000`
+        const after  = getStmt(
+          `SELECT ${cols} FROM app_patients WHERE UPPER(TRIM(nom)) >= ? ORDER BY UPPER(TRIM(nom)), UPPER(TRIM(prenom)) LIMIT 2000`
         ).all(q)
-        return { rows: [...before, ...after], seekIndex: before.length }
+        return { rows: [...before, ...after], seekIndex: before.length, hasBefore: false, hasAfter: false }
       }
 
       if (p.field === 'prenom') {
-        const q = v.charAt(0).toUpperCase() + v.slice(1)
+        const q      = v.toUpperCase()
         const before = (getStmt(
-          `SELECT ${cols} FROM app_patients WHERE prenom < ? ORDER BY prenom DESC, nom DESC LIMIT 500`
+          `SELECT ${cols} FROM app_patients WHERE UPPER(TRIM(prenom)) < ? ORDER BY UPPER(TRIM(prenom)) DESC, UPPER(TRIM(nom)) DESC LIMIT 500`
         ).all(q) as unknown[]).reverse()
-        const after = getStmt(
-          `SELECT ${cols} FROM app_patients WHERE prenom >= ? ORDER BY prenom, nom LIMIT 2000`
+        const after  = getStmt(
+          `SELECT ${cols} FROM app_patients WHERE UPPER(TRIM(prenom)) >= ? ORDER BY UPPER(TRIM(prenom)), UPPER(TRIM(nom)) LIMIT 2000`
         ).all(q)
-        return { rows: [...before, ...after], seekIndex: before.length }
+        return { rows: [...before, ...after], seekIndex: before.length, hasBefore: false, hasAfter: false }
       }
 
-      // code: substring match, no natural seek boundary
+      if (p.field === 'ddn') {
+        const parts = v.split('/')
+        const dd    = parseInt(parts[0] ?? '', 10)
+        const mm    = parseInt(parts[1] ?? '', 10)
+        if (!dd || !mm) return { rows: [], seekIndex: 0, hasBefore: false, hasAfter: false }
+        const yyyy    = parts[2] ?? null
+        const pattern = yyyy ? `${mm}/${dd}/${yyyy}%` : `${mm}/${dd}/%`
+        const rows    = getStmt(
+          `SELECT ${cols} FROM app_patients WHERE date_de_naissance LIKE ? ORDER BY ${SDDN}, compteur LIMIT 1001`
+        ).all(pattern) as unknown[]
+        const hasAfter = rows.length > 1000
+        return { rows: rows.slice(0, 1000), seekIndex: 0, hasBefore: false, hasAfter }
+      }
+
+      // code: substring match sorted by numeric part before '/'
       const rows = getStmt(
-        `SELECT ${cols} FROM app_patients WHERE n_dossier LIKE ? ORDER BY n_dossier LIMIT 1000`
+        `SELECT ${cols} FROM app_patients WHERE n_dossier LIKE ? ORDER BY ${SCODE}, n_dossier LIMIT 1000`
       ).all('%' + v + '%')
-      return { rows, seekIndex: 0 }
+      return { rows, seekIndex: 0, hasBefore: false, hasAfter: false }
+    }
+  )
+
+  ipcMain.handle(
+    'patients:load-more',
+    (_event, p: {
+      field: 'nom' | 'prenom' | 'code'
+      direction: 'before' | 'after'
+      anchor: { nom: string | null; prenom: string | null; n_dossier: string | null; compteur: number }
+    }) => {
+      if (!db) return { rows: [], hasMore: false }
+      const cols  = 'compteur, nom, prenom, n_dossier, date_de_naissance, ville, tel_domicile'
+      const SCODE = `CAST(CASE WHEN INSTR(n_dossier,'/') > 0 THEN SUBSTR(n_dossier,1,INSTR(n_dossier,'/')-1) ELSE n_dossier END AS INTEGER)`
+      const fwd   = p.direction === 'after'
+      const cpt   = p.anchor.compteur
+
+      if (p.field === 'nom') {
+        const n  = (p.anchor.nom    ?? '').toUpperCase()
+        const pr = (p.anchor.prenom ?? '').toUpperCase()
+        const rows = fwd
+          ? getStmt(`SELECT ${cols} FROM app_patients WHERE UPPER(nom) > @n OR (UPPER(nom) = @n AND UPPER(prenom) > @pr) OR (UPPER(nom) = @n AND UPPER(prenom) = @pr AND CAST(compteur AS INTEGER) > @cpt) ORDER BY UPPER(nom) ASC, UPPER(prenom) ASC, CAST(compteur AS INTEGER) ASC LIMIT 501`).all({ n, pr, cpt })
+          : (getStmt(`SELECT ${cols} FROM app_patients WHERE UPPER(nom) < @n OR (UPPER(nom) = @n AND UPPER(prenom) < @pr) OR (UPPER(nom) = @n AND UPPER(prenom) = @pr AND CAST(compteur AS INTEGER) < @cpt) ORDER BY UPPER(nom) DESC, UPPER(prenom) DESC, CAST(compteur AS INTEGER) DESC LIMIT 501`).all({ n, pr, cpt }) as unknown[]).reverse()
+        const hasMore = rows.length > 500
+        return { rows: (rows as unknown[]).slice(0, 500), hasMore }
+      }
+
+      if (p.field === 'prenom') {
+        const pr = (p.anchor.prenom ?? '').toUpperCase()
+        const n  = (p.anchor.nom    ?? '').toUpperCase()
+        const rows = fwd
+          ? getStmt(`SELECT ${cols} FROM app_patients WHERE UPPER(prenom) > @pr OR (UPPER(prenom) = @pr AND UPPER(nom) > @n) OR (UPPER(prenom) = @pr AND UPPER(nom) = @n AND CAST(compteur AS INTEGER) > @cpt) ORDER BY UPPER(prenom) ASC, UPPER(nom) ASC, CAST(compteur AS INTEGER) ASC LIMIT 501`).all({ pr, n, cpt })
+          : (getStmt(`SELECT ${cols} FROM app_patients WHERE UPPER(prenom) < @pr OR (UPPER(prenom) = @pr AND UPPER(nom) < @n) OR (UPPER(prenom) = @pr AND UPPER(nom) = @n AND CAST(compteur AS INTEGER) < @cpt) ORDER BY UPPER(prenom) DESC, UPPER(nom) DESC, CAST(compteur AS INTEGER) DESC LIMIT 501`).all({ pr, n, cpt }) as unknown[]).reverse()
+        const hasMore = rows.length > 500
+        return { rows: (rows as unknown[]).slice(0, 500), hasMore }
+      }
+
+      // code
+      const nd = p.anchor.n_dossier ?? ''
+      const sc = parseInt(nd.split('/')[0] ?? '0', 10)
+      const rows = fwd
+        ? getStmt(`SELECT ${cols} FROM app_patients WHERE ${SCODE} > @sc OR (${SCODE} = @sc AND n_dossier > @nd) OR (n_dossier = @nd AND CAST(compteur AS INTEGER) > @cpt) ORDER BY ${SCODE} ASC, n_dossier ASC, CAST(compteur AS INTEGER) ASC LIMIT 501`).all({ sc, nd, cpt })
+        : (getStmt(`SELECT ${cols} FROM app_patients WHERE ${SCODE} < @sc OR (${SCODE} = @sc AND n_dossier < @nd) OR (n_dossier = @nd AND CAST(compteur AS INTEGER) < @cpt) ORDER BY ${SCODE} DESC, n_dossier DESC, CAST(compteur AS INTEGER) DESC LIMIT 501`).all({ sc, nd, cpt }) as unknown[]).reverse()
+      const hasMore = rows.length > 500
+      return { rows: (rows as unknown[]).slice(0, 500), hasMore }
     }
   )
 

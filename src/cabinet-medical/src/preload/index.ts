@@ -2,8 +2,13 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
-  searchPatients: (p: { field: 'nom' | 'prenom' | 'code'; value: string }) =>
+  searchPatients: (p: { field: 'nom' | 'prenom' | 'code' | 'ddn'; value: string }) =>
     ipcRenderer.invoke('patients:search', p),
+  loadMorePatients: (p: {
+    field: 'nom' | 'prenom' | 'code'
+    direction: 'before' | 'after'
+    anchor: { nom: string | null; prenom: string | null; n_dossier: string | null; compteur: number }
+  }) => ipcRenderer.invoke('patients:load-more', p),
   getPatient: (compteur: number) => ipcRenderer.invoke('patients:get', compteur),
   getConsultations: (compteur: number) => ipcRenderer.invoke('patients:consultations', compteur),
   lookupSearch: (p: { source: string; value: string }) => ipcRenderer.invoke('lookup:search', p),
