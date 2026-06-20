@@ -1,0 +1,447 @@
+/* ── ConsultationPage ── */
+
+.cp-shell {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255,255,255,0.10), transparent 24%),
+    radial-gradient(circle at 82% 78%, rgba(209,250,229,0.09), transparent 28%),
+    linear-gradient(135deg, #14322a 0%, #1d4a3a 48%, #234f3f 100%);
+}
+
+/* ── Topbar ── */
+.cp-topbar {
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.16);
+}
+.cp-topbar-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 calc(24px * var(--ui-scale));
+  height: calc(46px * var(--ui-scale));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cp-title {
+  margin: 0;
+  font-size: calc(18px * var(--ui-scale));
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.4px;
+}
+.cp-topbar-btns {
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--ui-scale));
+}
+.cp-unsaved-hint {
+  font-size: calc(11px * var(--ui-scale));
+  color: #fbbf24;
+  font-style: italic;
+}
+.cp-save-btn {
+  font-family: inherit;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 700;
+  padding: calc(6px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  border-radius: 4px;
+  border: none;
+  background: #059669;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.cp-save-btn:hover:not(:disabled) { background: #047857; }
+.cp-save-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.cp-menu-btn {
+  font-family: inherit;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 600;
+  padding: calc(5px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.24);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.9);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.cp-menu-btn:hover { background: rgba(255,255,255,0.15); }
+.cp-menu-btn:focus-visible { outline: none; }
+
+/* ── Workspace ── */
+.cp-workspace {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(16px * var(--ui-scale)) calc(24px * var(--ui-scale));
+  box-sizing: border-box;
+}
+
+/* ── Card ── */
+.cp-card {
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.22);
+  /* NO overflow:hidden — lets the add-theme dropdown render outside the card */
+}
+
+/* Card header: patient name + counter */
+.cp-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(13px * var(--ui-scale)) calc(20px * var(--ui-scale));
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 6px 6px 0 0; /* round top corners since card has no overflow:hidden */
+}
+.cp-patient-nom {
+  font-size: calc(16px * var(--ui-scale));
+  font-weight: 800;
+  color: #111;
+}
+.cp-patient-prenom {
+  font-size: calc(16px * var(--ui-scale));
+  font-weight: 500;
+  color: #374151;
+}
+.cp-card-header-right {
+  display: flex;
+  align-items: center;
+  gap: calc(8px * var(--ui-scale));
+}
+.cp-counter {
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 700;
+  color: #9ca3af;
+  font-family: 'Courier New', monospace;
+}
+.cp-new-chip {
+  font-size: calc(11px * var(--ui-scale));
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  padding: calc(3px * var(--ui-scale)) calc(10px * var(--ui-scale));
+  border-radius: 10px;
+}
+
+/* ── Inline navigation (inside card, between patient name and dossier) ── */
+.cp-inav {
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--ui-scale));
+  padding: calc(8px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  background: #fff;
+  border-bottom: 2px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+.cp-inav-btn {
+  font-family: inherit;
+  font-size: calc(12px * var(--ui-scale));
+  font-weight: 600;
+  padding: calc(5px * var(--ui-scale)) calc(11px * var(--ui-scale));
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s;
+}
+.cp-inav-btn:hover:not(:disabled) { background: #f3f4f6; border-color: #9ca3af; }
+.cp-inav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.cp-inav-btn--active { background: #059669 !important; color: #fff !important; border-color: #047857 !important; }
+.cp-inav-btn--del {
+  background: #fff5f5;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+.cp-inav-btn--del:hover:not(:disabled) { background: #fee2e2; border-color: #f87171; }
+.cp-inav-sep {
+  flex: 1;
+  min-width: calc(8px * var(--ui-scale));
+  max-width: calc(32px * var(--ui-scale));
+}
+
+/* Subheader: dossier + notes indicator */
+.cp-subheader {
+  display: flex;
+  align-items: center;
+  gap: calc(6px * var(--ui-scale));
+  padding: calc(6px * var(--ui-scale)) calc(20px * var(--ui-scale));
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: calc(12px * var(--ui-scale));
+}
+.cp-dossier-num {
+  font-weight: 700;
+  color: #374151;
+}
+.cp-dossier-titre {
+  color: #6b7280;
+}
+.cp-notes-dot {
+  margin-left: auto;
+  color: #9ca3af;
+  font-size: calc(12px * var(--ui-scale));
+}
+
+/* Info strip: N° | Date | Heure | Recul | Âge */
+.cp-info-strip {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+}
+.cp-info-cell {
+  flex-shrink: 0;
+  border-right: 1px solid #e5e7eb;
+  padding: calc(10px * var(--ui-scale)) calc(18px * var(--ui-scale));
+  display: flex;
+  flex-direction: column;
+  gap: calc(2px * var(--ui-scale));
+}
+.cp-info-cell--grow {
+  flex: 1;
+  border-right: none;
+}
+.cp-info-label {
+  font-size: calc(9px * var(--ui-scale));
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #9ca3af;
+}
+.cp-info-value {
+  font-size: calc(14px * var(--ui-scale));
+  font-weight: 700;
+  color: #111;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+}
+.cp-info-recul { color: #059669; }
+
+/* Theme panels area */
+.cp-themes-area {
+  padding: calc(18px * var(--ui-scale)) calc(20px * var(--ui-scale));
+  display: flex;
+  flex-direction: column;
+  gap: calc(12px * var(--ui-scale));
+  border-radius: 0 0 6px 6px; /* round bottom corners to match card */
+}
+
+.cp-empty {
+  padding: calc(48px * var(--ui-scale)) calc(20px * var(--ui-scale));
+  text-align: center;
+  color: #6b7280;
+  font-size: calc(14px * var(--ui-scale));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(16px * var(--ui-scale));
+}
+
+/* Individual theme card */
+.cp-theme-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cp-theme-card-top {
+  display: flex;
+  align-items: center;
+  gap: calc(8px * var(--ui-scale));
+  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+.cp-theme-badge {
+  font-size: calc(11px * var(--ui-scale));
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #065f46;
+  background: #d1fae5;
+  padding: calc(2px * var(--ui-scale)) calc(9px * var(--ui-scale));
+  border-radius: 4px;
+}
+.cp-dirty-dot {
+  font-size: calc(8px * var(--ui-scale));
+  color: #f59e0b;
+  line-height: 1;
+}
+.cp-remove-btn {
+  margin-left: auto;
+  font-family: inherit;
+  font-size: calc(18px * var(--ui-scale));
+  font-weight: 300;
+  line-height: 1;
+  color: #9ca3af;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 calc(3px * var(--ui-scale));
+  border-radius: 3px;
+  transition: color 0.1s, background 0.1s;
+}
+.cp-remove-btn:hover:not(:disabled) { color: #dc2626; background: #fee2e2; }
+.cp-remove-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+.cp-theme-ta {
+  display: block;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  font-size: calc(14px * var(--ui-scale));
+  color: #111;
+  line-height: 1.75;
+  padding: calc(12px * var(--ui-scale));
+  box-sizing: border-box;
+  min-height: calc(108px * var(--ui-scale));
+  background: #fff;
+}
+
+/* Add theme — position:relative so dropdown is relative to this wrapper,
+   NOT clipped by any ancestor since .cp-card no longer has overflow:hidden */
+.cp-add-wrap {
+  position: relative;
+  align-self: flex-start;
+}
+.cp-add-btn {
+  font-family: inherit;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 600;
+  padding: calc(7px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  border-radius: 4px;
+  border: 1px dashed #d1d5db;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s, background 0.1s;
+}
+.cp-add-btn:hover { border-color: #059669; color: #059669; background: #f0fdf4; }
+
+.cp-picker {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  min-width: calc(200px * var(--ui-scale));
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+  z-index: 200;
+  padding: calc(4px * var(--ui-scale)) 0;
+}
+.cp-picker-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 500;
+  padding: calc(9px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  background: none;
+  border: none;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.08s;
+}
+.cp-picker-item:hover { background: #f0fdf4; color: #065f46; }
+
+/* ── Footer ── */
+.cp-footer {
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.22);
+  border-top: 1px solid rgba(255,255,255,0.18);
+}
+.cp-footer-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: calc(6px * var(--ui-scale)) calc(24px * var(--ui-scale));
+  display: flex;
+  flex-direction: column;
+  gap: calc(4px * var(--ui-scale));
+}
+.cp-footer-row {
+  display: flex;
+  gap: calc(4px * var(--ui-scale));
+}
+.cp-footer-row:not(.cp-footer-row--center) .cp-footer-btn { flex: 1; }
+.cp-footer-row--center { justify-content: center; }
+.cp-footer-btn {
+  font-family: inherit;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 600;
+  padding: calc(5px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 3px;
+  background: #fff;
+  color: #000;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+.cp-footer-btn:hover:not(:disabled) { background: #d3d3d3; }
+.cp-footer-btn:focus-visible { outline: none; }
+.cp-footer-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Modals (delete consultation + remove theme) ── */
+.cp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.cp-modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: calc(28px * var(--ui-scale));
+  min-width: calc(300px * var(--ui-scale));
+  max-width: calc(420px * var(--ui-scale));
+  box-shadow: 0 8px 32px rgba(0,0,0,0.30);
+}
+.cp-modal-text {
+  margin: 0 0 calc(20px * var(--ui-scale));
+  font-size: calc(14px * var(--ui-scale));
+  color: #111;
+  line-height: 1.55;
+  text-align: center;
+}
+.cp-modal-text small { font-size: calc(12px * var(--ui-scale)); color: #6b7280; }
+.cp-modal-btns {
+  display: flex;
+  justify-content: center;
+  gap: calc(10px * var(--ui-scale));
+}
+.cp-modal-btn {
+  font-family: inherit;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 600;
+  padding: calc(7px * var(--ui-scale)) calc(22px * var(--ui-scale));
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  background: #f3f4f6;
+  color: #111;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.cp-modal-btn:hover:not(:disabled) { background: #e5e7eb; }
+.cp-modal-btn:disabled { opacity: 0.5; }
+.cp-modal-btn--danger { background: #dc2626; color: #fff; border-color: #dc2626; }
+.cp-modal-btn--danger:hover:not(:disabled) { background: #b91c1c; }

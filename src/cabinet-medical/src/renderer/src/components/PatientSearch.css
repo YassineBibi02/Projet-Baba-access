@@ -465,6 +465,27 @@
   border-radius: 3px;
 }
 
+.ps-consult-open-btn {
+  font-family: inherit;
+  font-size: calc(11px * var(--ui-scale));
+  font-weight: 600;
+  padding: calc(3px * var(--ui-scale)) calc(9px * var(--ui-scale));
+  border-radius: 3px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.ps-consult-open-btn:hover {
+  background: #f0fdf4;
+  border-color: #059669;
+  color: #047857;
+}
+
 .ps-consult-body {
   background: #fafdf9;
   border-top: 1px solid #f3f4f6;

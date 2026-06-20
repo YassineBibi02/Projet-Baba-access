@@ -3,6 +3,7 @@ import "./App.css";
 import PatientSearch from "./components/PatientSearch";
 import NewPatient from "./components/NewPatient";
 import PatientsFile from "./components/PatientsFile";
+import ConsultationList from "./components/ConsultationList";
 
 type MenuItem = {
   label: string;
@@ -42,9 +43,9 @@ const menuItems: MenuItem[] = [
     enabled: false,
   },
   {
-    label: "Rendez-vous",
-    view: "rendez-vous",
-    enabled: false,
+    label: "Liste de Consultation",
+    view: "liste-consultation",
+    enabled: true,
   },
   {
     label: "Gestion",
@@ -87,7 +88,7 @@ function App() {
       setCurrentView("nouveau-patient");
       return;
     }
-    if (item.view === "recherche-patient" || item.view === "fichier-patients") {
+    if (item.view === "recherche-patient" || item.view === "fichier-patients" || item.view === "liste-consultation") {
       setCurrentView(item.view);
       return;
     }
@@ -106,6 +107,9 @@ function App() {
   }
   if (currentView === "fichier-patients") {
     return <PatientsFile onBack={() => setCurrentView(null)} />;
+  }
+  if (currentView === "liste-consultation") {
+    return <ConsultationList onBack={() => setCurrentView(null)} />;
   }
   if (currentView === "nouveau-patient") {
     return <NewPatient

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import './PatientSearch.css'
+import ConsultationPage from './ConsultationPage'
 
 interface PatientRow {
   compteur: number
@@ -362,7 +363,11 @@ function PatientDetails({ patient }: { patient: PatientFull }) {
 }
 
 // ── Consultations ─────────────────────────────────────────────────────────────
-function ConsultationList({ consultations, themes }: ConsultData) {
+interface ConsultListProps extends ConsultData {
+  onOpen: (c: ConsultationRow) => void
+}
+
+function ConsultationList({ consultations, themes, onOpen }: ConsultListProps) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   function toggle(id: number) {
@@ -403,6 +408,11 @@ function ConsultationList({ consultations, themes }: ConsultData) {
               <span className="ps-consult-dossier">
                 {c.titre_dossier_medical ?? c.code_dossier_medical ?? `Dossier ${c.numero_dossier_medical ?? '?'}`}
               </span>
+              <button
+                className="ps-consult-open-btn"
+                onClick={e => { e.stopPropagation(); onOpen(c) }}
+                title="Ouvrir dans l'éditeur de consultation"
+              >Ouvrir →</button>
             </div>
 
             {open && (
@@ -440,6 +450,11 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
   const [patient, setPatient]       = useState<PatientFull | null>(null)
   const [showResume, setShowResume] = useState(false)
   const [consultData, setConsultData] = useState<ConsultData | null>(null)
+  const [openConsult, setOpenConsult] = useState<{
+    numeroDossier: number | string
+    numeroConsultation: number
+    autoNew: boolean
+  } | null>(null)
 
   const nomRef  = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
@@ -528,6 +543,27 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
   }
 
   const open = openField !== null && result.rows.length > 0
+
+  // ── ConsultationPage overlay ─────────────────────────────────────────────────
+  if (patient && openConsult) {
+    return (
+      <ConsultationPage
+        compteur={patient.compteur}
+        nom={patient.nom}
+        prenom={patient.prenom}
+        dateNaissance={patient.date_de_naissance}
+        notesState={patient.notesstate}
+        numeroDossier={openConsult.numeroDossier}
+        initialNumeroConsultation={openConsult.numeroConsultation}
+        autoNew={openConsult.autoNew}
+        onBack={async () => {
+          setOpenConsult(null)
+          const data = await window.api.getConsultations(patient.compteur)
+          setConsultData(data)
+        }}
+      />
+    )
+  }
 
   let ageText = '—'
   let ageError = false
@@ -743,6 +779,11 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
             <ConsultationList
               consultations={consultData.consultations}
               themes={consultData.themes}
+              onOpen={c => setOpenConsult({
+                numeroDossier: c.numero_dossier_medical ?? 1,
+                numeroConsultation: Number(c.numero_consultation ?? 1),
+                autoNew: false
+              })}
             />
           )}
         </div>
@@ -759,7 +800,19 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
               onClick={() => patient && onOpenAdmin?.(patient.compteur)}
             >Administrative</button>
             <button className="ps-footer-btn" disabled>Visu Dossier</button>
-            <button className="ps-footer-btn" disabled>Consultation Zoom</button>
+            <button
+              className="ps-footer-btn"
+              disabled={!patient}
+              onClick={() => {
+                if (!patient) return
+                const consults = consultData?.consultations ?? []
+                const numeroDossier = consults[0]?.numero_dossier_medical ?? 1
+                const lastN = consults.length > 0
+                  ? Number(consults[consults.length - 1].numero_consultation ?? 0)
+                  : 0
+                setOpenConsult({ numeroDossier, numeroConsultation: lastN, autoNew: true })
+              }}
+            >Consultation</button>
             <button className="ps-footer-btn" disabled>Ordonnance</button>
             <button className="ps-footer-btn" disabled>Actes</button>
             <button className="ps-footer-btn" disabled>Courrier</button>

@@ -83,6 +83,52 @@ export interface ConsultData {
   themes: ThemeRow[]
 }
 
+export interface ConsultationByDateRow {
+  compteur_consultation: number
+  compteur: number
+  numero_dossier_medical: number | string | null
+  numero_consultation: number | string | null
+  date_consultation: string | null
+  heure_consultation: string | null
+  remarques_consultations: string | null
+  flag_remarques_consultations: number | null
+  nom: string | null
+  prenom: string | null
+  date_de_naissance: string | null
+  notesstate: string | null
+  titre_dossier_medical: string | null
+  code_dossier_medical: string | null
+}
+
+export interface ThemeTypeRow {
+  titre_theme: string
+  ordre_titre: string
+}
+
+export interface ConsultForDossierRow {
+  compteur_consultation: string | number
+  numero_dossier_medical: string | null
+  numero_consultation: string | null
+  date_consultation: string | null
+  heure_consultation: string | null
+  titre_dossier_medical: string | null
+  code_dossier_medical: string | null
+}
+
+export interface ConsultThemeRow {
+  compteur_consultation_themes: string | number
+  numero_dossier_medical: string | null
+  numero_consultation: string | null
+  titre_theme: string | null
+  contenu_theme: string | null
+  ordre_titre: string | null
+}
+
+export interface ConsultForDossierData {
+  consultations: ConsultForDossierRow[]
+  themes: ConsultThemeRow[]
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -98,6 +144,20 @@ declare global {
       }) => Promise<{ rows: PatientRow[]; hasMore: boolean }>
       getPatient: (compteur: number) => Promise<PatientFull | null>
       getConsultations: (compteur: number) => Promise<ConsultData>
+      getConsultationsByDate: (date: string) => Promise<ConsultationByDateRow[]>
+      getThemeTypes: () => Promise<ThemeTypeRow[]>
+      loadConsultationsForDossier: (compteur: number, numeroDossier: string | number) => Promise<ConsultForDossierData>
+      saveConsultationTheme: (data: {
+        compteur: number; numeroDossier: string; numeroConsultation: string
+        titreTheme: string; contenuTheme: string; compteurTheme: number | null
+      }) => Promise<{ ok: boolean; compteurTheme?: number; error?: string }>
+      createConsultation: (data: {
+        compteur: number; numeroDossier: string; titreTheme: string; contenuTheme: string
+      }) => Promise<{ ok: boolean; numeroConsultation?: number; compteurConsultation?: number; error?: string }>
+      deleteConsultation: (data: {
+        compteur: number; numeroDossier: string; numeroConsultation: string
+      }) => Promise<{ ok: boolean; error?: string }>
+      deleteConsultationTheme: (compteurTheme: number) => Promise<{ ok: boolean; error?: string }>
       lookupSearch: (p: { source: string; value: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
       lookupLoadMore: (p: { source: string; value: string; anchor: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
       getNextDossier: () => Promise<string>

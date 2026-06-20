@@ -13,6 +13,22 @@ const api = {
   getConsultations: (compteur: number) => ipcRenderer.invoke('patients:consultations', compteur),
   lookupSearch: (p: { source: string; value: string }) => ipcRenderer.invoke('lookup:search', p),
   lookupLoadMore: (p: { source: string; value: string; anchor: string }) => ipcRenderer.invoke('lookup:load-more', p),
+  getConsultationsByDate: (date: string) => ipcRenderer.invoke('consultations:by-date', date),
+  getThemeTypes: () => ipcRenderer.invoke('consultation:theme-types'),
+  loadConsultationsForDossier: (compteur: number, numeroDossier: string | number) =>
+    ipcRenderer.invoke('consultation:load-for-dossier', compteur, numeroDossier),
+  saveConsultationTheme: (data: {
+    compteur: number; numeroDossier: string; numeroConsultation: string
+    titreTheme: string; contenuTheme: string; compteurTheme: number | null
+  }) => ipcRenderer.invoke('consultation:save-theme', data),
+  createConsultation: (data: {
+    compteur: number; numeroDossier: string; titreTheme: string; contenuTheme: string
+  }) => ipcRenderer.invoke('consultation:create', data),
+  deleteConsultation: (data: {
+    compteur: number; numeroDossier: string; numeroConsultation: string
+  }) => ipcRenderer.invoke('consultation:delete', data),
+  deleteConsultationTheme: (compteurTheme: number) =>
+    ipcRenderer.invoke('consultation:delete-theme', compteurTheme),
   getNextDossier: () => ipcRenderer.invoke('patients:next-dossier'),
   deletePatient: (compteur: number) => ipcRenderer.invoke('patients:delete', compteur),
   updatePatient: (compteur: number, data: Record<string, string | number | null>) =>

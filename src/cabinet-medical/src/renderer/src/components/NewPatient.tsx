@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, forwardRef } from 'react'
 import type { PatientFull } from '../../../preload/index.d'
 import { createPortal } from 'react-dom'
+import ConsultationPage from './ConsultationPage'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import { fr } from 'date-fns/locale'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -311,6 +312,13 @@ export default function NewPatient({ onBack, editCompteur }: Props) {
   const [form, setForm] = useState<Form>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const [openConsult, setOpenConsult] = useState<{
+    compteur: number
+    nom: string | null
+    prenom: string | null
+    dateNaissance: string | null
+    notesState: string | null
+  } | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteInput, setDeleteInput] = useState('')
   const [deleteResult, setDeleteResult] = useState<{ ok: boolean; error?: string } | null>(null)
@@ -348,67 +356,61 @@ export default function NewPatient({ onBack, editCompteur }: Props) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
-  async function handleSave() {
-    if (!form.nom.trim() && !form.prenom.trim()) {
-      setFeedback({ type: 'error', msg: 'Le nom ou le prénom est requis.' })
-      return
-    }
-
+  function validate(): string | null {
+    if (!form.nom.trim() && !form.prenom.trim()) return 'Le nom ou le prénom est requis.'
     if (form.date_naissance) {
       const dob = parseDDMMYYYY(form.date_naissance)
-      if (!dob) {
-        setFeedback({ type: 'error', msg: 'Date de naissance invalide (format attendu : jj/mm/aaaa).' })
-        return
-      }
+      if (!dob) return 'Date de naissance invalide (format attendu : jj/mm/aaaa).'
       const today = new Date(); today.setHours(0, 0, 0, 0)
-      if (dob > today) {
-        setFeedback({ type: 'error', msg: 'La date de naissance ne peut pas être dans le futur.' })
-        return
-      }
+      if (dob > today) return 'La date de naissance ne peut pas être dans le futur.'
       const limit = new Date(); limit.setFullYear(limit.getFullYear() - 120)
-      if (dob < limit) {
-        setFeedback({ type: 'error', msg: 'La date de naissance ne peut pas dépasser 120 ans.' })
-        return
-      }
+      if (dob < limit) return 'La date de naissance ne peut pas dépasser 120 ans.'
     }
+    return null
+  }
+
+  function buildData(): Record<string, string | number | null> {
+    return {
+      nom:                    form.nom.trim() || null,
+      nom_jeune_fille:        form.nom_jeune_fille.trim() || null,
+      prenom:                 form.prenom.trim() || null,
+      n_dossier:              form.numero_dossier.trim() || null,
+      date_de_naissance:      toAccessDate(form.date_naissance),
+      lieu_de_naissance:      form.lieu_naissance.trim() || null,
+      sexe:                   form.sexe.trim() || null,
+      situation_de_famille:   form.situation_famille.trim() || null,
+      adresse:                form.adresse.trim() || null,
+      ville:                  form.ville.trim() || null,
+      code_ville:             form.code_ville.trim() || null,
+      gouvernorat_ou_pays:    form.gouvernorat_pays.trim() || null,
+      profession:             form.profession.trim() || null,
+      employeur:              form.employeur.trim() || null,
+      activite_employeur:     form.activite_employeur.trim() || null,
+      adresse_profession:     form.adresse_profession.trim() || null,
+      ville_profession:       form.ville_profession.trim() || null,
+      code_ville_profession:  form.code_ville_profession.trim() || null,
+      tel_bureau:             form.tel_bureau.trim() || null,
+      tel_domicile:           form.tel_domicile.trim() || null,
+      proche:                 form.proche.trim() || null,
+      tel_proche:             form.tel_proche.trim() || null,
+      n_affiliation:          form.numero_affiliation.trim() || null,
+      statut:                 form.statut.trim() || null,
+      couverture_sociale:     form.couverture_sociale.trim() || null,
+      date_1ere_consultation: toAccessDate(form.date_premiere_consultation),
+      notesstate:             form.notes_state ? 1 : 0,
+      remarques:              form.remarques.trim() || null,
+    }
+  }
+
+  async function handleSave() {
+    const err = validate()
+    if (err) { setFeedback({ type: 'error', msg: err }); return }
     setSaving(true)
     setFeedback(null)
     try {
-      const data: Record<string, string | number | null> = {
-        nom:                    form.nom.trim() || null,
-        nom_jeune_fille:        form.nom_jeune_fille.trim() || null,
-        prenom:                 form.prenom.trim() || null,
-        n_dossier:              form.numero_dossier.trim() || null,
-        date_de_naissance:      toAccessDate(form.date_naissance),
-        lieu_de_naissance:      form.lieu_naissance.trim() || null,
-        sexe:                   form.sexe.trim() || null,
-        situation_de_famille:   form.situation_famille.trim() || null,
-        adresse:                form.adresse.trim() || null,
-        ville:                  form.ville.trim() || null,
-        code_ville:             form.code_ville.trim() || null,
-        gouvernorat_ou_pays:    form.gouvernorat_pays.trim() || null,
-        profession:             form.profession.trim() || null,
-        employeur:              form.employeur.trim() || null,
-        activite_employeur:     form.activite_employeur.trim() || null,
-        adresse_profession:     form.adresse_profession.trim() || null,
-        ville_profession:       form.ville_profession.trim() || null,
-        code_ville_profession:  form.code_ville_profession.trim() || null,
-        tel_bureau:             form.tel_bureau.trim() || null,
-        tel_domicile:           form.tel_domicile.trim() || null,
-        proche:                 form.proche.trim() || null,
-        tel_proche:             form.tel_proche.trim() || null,
-        n_affiliation:          form.numero_affiliation.trim() || null,
-        statut:                 form.statut.trim() || null,
-        couverture_sociale:     form.couverture_sociale.trim() || null,
-        date_1ere_consultation: toAccessDate(form.date_premiere_consultation),
-        notesstate:             form.notes_state ? 1 : 0,
-        remarques:              form.remarques.trim() || null,
-      }
-
       const result = editCompteur
-        ? await window.api.updatePatient(editCompteur, data)
-        : await window.api.createPatient(data)
-
+        ? await window.api.updatePatient(editCompteur, buildData())
+        : await window.api.createPatient(buildData())
       if (result.ok) {
         if (editCompteur) {
           setFeedback({ type: 'success', msg: 'Fiche mise à jour.' })
@@ -428,6 +430,36 @@ export default function NewPatient({ onBack, editCompteur }: Props) {
     }
   }
 
+  async function handleSaveAndConsult() {
+    const err = validate()
+    if (err) { setFeedback({ type: 'error', msg: err }); return }
+    setSaving(true)
+    setFeedback(null)
+    try {
+      const result = editCompteur
+        ? await window.api.updatePatient(editCompteur, buildData())
+        : await window.api.createPatient(buildData())
+      if (!result.ok) {
+        setFeedback({ type: 'error', msg: `Erreur : ${result.error}` })
+        return
+      }
+      const compteur = editCompteur ?? (result as { compteur?: number }).compteur ?? null
+      if (!compteur) {
+        setFeedback({ type: 'error', msg: 'Erreur : numéro de patient introuvable.' })
+        return
+      }
+      setOpenConsult({
+        compteur,
+        nom: form.nom.trim() || null,
+        prenom: form.prenom.trim() || null,
+        dateNaissance: toAccessDate(form.date_naissance),
+        notesState: form.notes_state ? '1' : null,
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleDelete() {
     if (!editCompteur) return
     const result = await window.api.deletePatient(editCompteur)
@@ -438,6 +470,22 @@ export default function NewPatient({ onBack, editCompteur }: Props) {
 
   const expectedName = form.nom.trim().toUpperCase()
   const deleteConfirmed = deleteInput.trim().toUpperCase() === expectedName && expectedName !== ''
+
+  if (openConsult) {
+    return (
+      <ConsultationPage
+        compteur={openConsult.compteur}
+        nom={openConsult.nom}
+        prenom={openConsult.prenom}
+        dateNaissance={openConsult.dateNaissance}
+        notesState={openConsult.notesState}
+        numeroDossier={1}
+        initialNumeroConsultation={0}
+        autoNew={true}
+        onBack={onBack}
+      />
+    )
+  }
 
   return (
     <div className="ps-shell">
@@ -669,7 +717,11 @@ export default function NewPatient({ onBack, editCompteur }: Props) {
           <div className="ps-footer-row-fill">
             <button className="ps-footer-btn ps-footer-btn--active" disabled>Administrative</button>
             <button className="ps-footer-btn" disabled>Visu Dossier</button>
-            <button className="ps-footer-btn" disabled>Consultation Zoom</button>
+            <button
+              className="ps-footer-btn"
+              disabled={saving}
+              onClick={handleSaveAndConsult}
+            >Consultation</button>
             <button className="ps-footer-btn" disabled>Ordonnance</button>
             <button className="ps-footer-btn" disabled>Actes</button>
             <button className="ps-footer-btn" disabled>Courrier</button>

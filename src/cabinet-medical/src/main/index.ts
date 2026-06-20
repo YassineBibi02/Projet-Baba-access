@@ -221,6 +221,243 @@ app.whenReady().then(() => {
     return { consultations, themes }
   })
 
+  ipcMain.handle('consultations:by-date', (_event, date: string) => {
+    // date: DD/MM/YYYY → convert to M/D/YYYY (Access format)
+    if (!db || !date) return []
+    const parts = date.split('/')
+    if (parts.length < 3 || !parts[2] || parts[2].length < 4) return []
+    const dd = parseInt(parts[0] ?? '', 10)
+    const mm = parseInt(parts[1] ?? '', 10)
+    const yyyy = parts[2]
+    if (!dd || !mm) return []
+    const accessDate = `${mm}/${dd}/${yyyy}`
+    return getStmt(`
+      SELECT c.compteur_consultation, c.compteur,
+             c.numero_dossier_medical, c.numero_consultation,
+             c.date_consultation, c.heure_consultation,
+             c.remarques_consultations, c.flag_remarques_consultations,
+             p.nom, p.prenom, p.date_de_naissance, p.notesstate,
+             d.titre_dossier_medical, d.code_dossier_medical
+      FROM app_consultations c
+      LEFT JOIN app_patients p ON p.compteur = c.compteur
+      LEFT JOIN app_dossiers d ON d.compteur = c.compteur
+             AND d.numero_dossier_medical = c.numero_dossier_medical
+      WHERE c.date_consultation LIKE ?
+      ORDER BY c.heure_consultation ASC, c.compteur_consultation ASC
+      LIMIT 500
+    `).all(accessDate + '%')
+  })
+
+  // consultation:theme-types — lookup table of valid theme titles
+  ipcMain.handle('consultation:theme-types', () => {
+    if (!db) return []
+    return getStmt(
+      'SELECT titre_theme, ordre_titre FROM raw_t_consultations_titre_themes ORDER BY CAST(ordre_titre AS INTEGER)'
+    ).all()
+  })
+
+  // consultation:load-for-dossier — all consultations + themes for one patient+dossier
+  ipcMain.handle('consultation:load-for-dossier', (_event, compteur: number, numeroDossier: string | number) => {
+    if (!db) return { consultations: [], themes: [] }
+    const cStr = String(compteur)
+    const dStr = String(numeroDossier)
+    const consultations = getStmt(`
+      SELECT c.compteur_consultation, c.numero_dossier_medical, c.numero_consultation,
+             c.date_consultation, c.heure_consultation,
+             c.remarques_consultations, c.flag_remarques_consultations,
+             d.titre_dossier_medical, d.code_dossier_medical
+      FROM app_consultations c
+      LEFT JOIN app_dossiers d ON d.compteur = c.compteur AND d.numero_dossier_medical = c.numero_dossier_medical
+      WHERE c.compteur = ? AND c.numero_dossier_medical = ?
+      ORDER BY CAST(c.numero_consultation AS INTEGER) ASC
+      LIMIT 1000
+    `).all(cStr, dStr)
+    const themes = getStmt(`
+      SELECT compteur_consultation_themes, numero_dossier_medical, numero_consultation,
+             titre_theme, contenu_theme, ordre_titre
+      FROM app_consultation_themes
+      WHERE compteur = ? AND numero_dossier_medical = ?
+      ORDER BY CAST(numero_consultation AS INTEGER) ASC, CAST(ordre_titre AS INTEGER) ASC
+      LIMIT 5000
+    `).all(cStr, dStr)
+    return { consultations, themes }
+  })
+
+  // consultation:save-theme — update existing theme or insert a new one
+  ipcMain.handle('consultation:save-theme', (_event, data: {
+    compteur: number
+    numeroDossier: string
+    numeroConsultation: string
+    titreTheme: string
+    contenuTheme: string
+    compteurTheme: number | null
+  }) => {
+    if (!db) return { ok: false, error: 'No database' }
+    try {
+      if (data.compteurTheme !== null) {
+        db.prepare(`
+          UPDATE raw_t_consultations_themes
+          SET titre_theme = @titre, contenu_theme = @contenu
+          WHERE CAST(compteur_consultation_themes AS INTEGER) = @id
+        `).run({ titre: data.titreTheme, contenu: data.contenuTheme, id: data.compteurTheme })
+        return { ok: true, compteurTheme: data.compteurTheme }
+      }
+      const maxRow = db.prepare(
+        'SELECT MAX(CAST(compteur_consultation_themes AS INTEGER)) as m FROM raw_t_consultations_themes'
+      ).get() as { m: number | null }
+      const nextId = (maxRow.m ?? 0) + 1
+      const typeRow = db.prepare(
+        'SELECT ordre_titre FROM raw_t_consultations_titre_themes WHERE titre_theme = ?'
+      ).get(data.titreTheme) as { ordre_titre: string } | undefined
+      db.prepare(`
+        INSERT INTO raw_t_consultations_themes
+        (compteur_consultation_themes, compteur, numero_dossier_medical, numero_consultation,
+         titre_theme, ordre_titre, date_theme, heure_theme, contenu_theme, flag_examen)
+        VALUES (@id, @cpt, @dos, @nc, @titre, @ordre, NULL, NULL, @contenu, NULL)
+      `).run({
+        id: String(nextId), cpt: String(data.compteur),
+        dos: data.numeroDossier, nc: data.numeroConsultation,
+        titre: data.titreTheme, ordre: typeRow?.ordre_titre ?? '1',
+        contenu: data.contenuTheme
+      })
+      return { ok: true, compteurTheme: nextId }
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) }
+    }
+  })
+
+  // consultation:create — new consultation record + initial theme
+  ipcMain.handle('consultation:create', (_event, data: {
+    compteur: number
+    numeroDossier: string
+    titreTheme: string
+    contenuTheme: string
+  }) => {
+    if (!db) return { ok: false, error: 'No database' }
+    try {
+      const cStr = String(data.compteur)
+      const maxNC = db.prepare(
+        'SELECT MAX(CAST(numero_consultation AS INTEGER)) as m FROM raw_t_consultations WHERE compteur = ? AND numero_dossier_medical = ?'
+      ).get(cStr, data.numeroDossier) as { m: number | null }
+      const nextNC = (maxNC.m ?? 0) + 1
+      const maxCC = db.prepare(
+        'SELECT MAX(CAST(compteur_consultation AS INTEGER)) as m FROM raw_t_consultations'
+      ).get() as { m: number | null }
+      const nextCC = (maxCC.m ?? 0) + 1
+      const now   = new Date()
+      const date  = `${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()}`
+      const heure = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:00`
+      db.prepare(`
+        INSERT INTO raw_t_consultations
+        (compteur_consultation, compteur, numero_dossier_medical, numero_consultation,
+         date_consultation, heure_consultation)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(String(nextCC), cStr, data.numeroDossier, String(nextNC), date, heure)
+      if (data.titreTheme) {
+        const maxTheme = db.prepare(
+          'SELECT MAX(CAST(compteur_consultation_themes AS INTEGER)) as m FROM raw_t_consultations_themes'
+        ).get() as { m: number | null }
+        const nextTheme = (maxTheme.m ?? 0) + 1
+        const typeRow = db.prepare(
+          'SELECT ordre_titre FROM raw_t_consultations_titre_themes WHERE titre_theme = ?'
+        ).get(data.titreTheme) as { ordre_titre: string } | undefined
+        db.prepare(`
+          INSERT INTO raw_t_consultations_themes
+          (compteur_consultation_themes, compteur, numero_dossier_medical, numero_consultation,
+           titre_theme, ordre_titre, date_theme, heure_theme, contenu_theme, flag_examen)
+          VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL)
+        `).run(String(nextTheme), cStr, data.numeroDossier, String(nextNC),
+               data.titreTheme, typeRow?.ordre_titre ?? '1', data.contenuTheme)
+      }
+      return { ok: true, numeroConsultation: nextNC, compteurConsultation: nextCC, date, heure }
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) }
+    }
+  })
+
+  // consultation:delete-theme — remove a single theme row by its primary key
+  ipcMain.handle('consultation:delete-theme', (_event, compteurTheme: number) => {
+    if (!db) return { ok: false, error: 'No database' }
+    try {
+      db.prepare(
+        'DELETE FROM raw_t_consultations_themes WHERE CAST(compteur_consultation_themes AS INTEGER) = ?'
+      ).run(compteurTheme)
+      return { ok: true }
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) }
+    }
+  })
+
+  // consultation:delete — remove consultation and all its themes
+  ipcMain.handle('consultation:delete', (_event, data: {
+    compteur: number
+    numeroDossier: string
+    numeroConsultation: string
+  }) => {
+    if (!db) return { ok: false, error: 'No database' }
+    try {
+      const cStr = String(data.compteur)
+      db.prepare(
+        'DELETE FROM raw_t_consultations_themes WHERE compteur = ? AND numero_dossier_medical = ? AND numero_consultation = ?'
+      ).run(cStr, data.numeroDossier, data.numeroConsultation)
+      db.prepare(
+        'DELETE FROM raw_t_consultations WHERE compteur = ? AND numero_dossier_medical = ? AND numero_consultation = ?'
+      ).run(cStr, data.numeroDossier, data.numeroConsultation)
+      return { ok: true }
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) }
+    }
+  })
+
+  // lookup:search / lookup:load-more — distinct values from app_patients columns for Lookup dropdowns
+  const LOOKUP_COL: Record<string, string> = {
+    sexe:               'sexe',
+    situation_famille:  'situation_de_famille',
+    lieu_naissance:     'lieu_de_naissance',
+    adresse:            'adresse',
+    ville:              'ville',
+    code_ville:         'code_ville',
+    gouvernorat:        'gouvernorat_ou_pays',
+    proche:             'proche',
+    profession:         'profession',
+    employeur:          'employeur',
+    activite_employeur: 'activite_employeur',
+    adresse_prof:       'adresse_profession',
+    ville_prof:         'ville_profession',
+    code_ville_prof:    'code_ville_profession',
+    statut:             'statut',
+    couverture_sociale: 'couverture_sociale',
+  }
+
+  ipcMain.handle('lookup:search', (_event, p: { source: string; value: string }) => {
+    if (!db) return { vals: [], hasAfter: false }
+    const col = LOOKUP_COL[p.source]
+    if (!col) return { vals: [], hasAfter: false }
+    const v = p.value.trim()
+    const base = `SELECT DISTINCT TRIM(${col}) AS val FROM app_patients WHERE ${col} IS NOT NULL AND TRIM(${col}) != ''`
+    const rows = (v
+      ? getStmt(`${base} AND UPPER(TRIM(${col})) LIKE ? ORDER BY UPPER(TRIM(${col})) LIMIT 101`).all('%' + v.toUpperCase() + '%')
+      : getStmt(`${base} ORDER BY UPPER(TRIM(${col})) LIMIT 101`).all()
+    ) as Array<{ val: string }>
+    const hasAfter = rows.length > 100
+    return { vals: rows.slice(0, 100).map(r => r.val), hasAfter }
+  })
+
+  ipcMain.handle('lookup:load-more', (_event, p: { source: string; value: string; anchor: string }) => {
+    if (!db) return { vals: [], hasAfter: false }
+    const col = LOOKUP_COL[p.source]
+    if (!col) return { vals: [], hasAfter: false }
+    const v = p.value.trim()
+    const base = `SELECT DISTINCT TRIM(${col}) AS val FROM app_patients WHERE ${col} IS NOT NULL AND TRIM(${col}) != '' AND UPPER(TRIM(${col})) > ?`
+    const anchor = p.anchor.toUpperCase()
+    const rows = (v
+      ? getStmt(`${base} AND UPPER(TRIM(${col})) LIKE ? ORDER BY UPPER(TRIM(${col})) LIMIT 101`).all(anchor, '%' + v.toUpperCase() + '%')
+      : getStmt(`${base} ORDER BY UPPER(TRIM(${col})) LIMIT 101`).all(anchor)
+    ) as Array<{ val: string }>
+    const hasAfter = rows.length > 100
+    return { vals: rows.slice(0, 100).map(r => r.val), hasAfter }
+  })
+
   // patients:next-dossier — read the last patient's n_dossier, increment its leading number
   ipcMain.handle('patients:next-dossier', () => {
     if (!db) return ''
