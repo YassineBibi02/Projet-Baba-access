@@ -83,6 +83,65 @@ export interface ConsultData {
   themes: ThemeRow[]
 }
 
+export interface OrdonnanceRow {
+  compteur_ordonnance: number
+  numero_dossier_medical: number | string
+  numero_consultation: number | null
+  numero_ordonnance: number
+  date_ordonnance: string | null
+  heure_ordonnance: string | null
+  duree_valeur: string | null
+  duree_unite: string | null
+  a_renouveler_fois: number | null
+  prochain_controle: string | null
+  flag_interactions: number | null
+  flag_allergie: number | null
+  flag_intolerance: number | null
+  flag_diagnostic: number | null
+  flag_tare: number | null
+  imprimer_entete: number | null
+  imprimer_nom_prenom: number | null
+  imprimer_date_naissance: number | null
+  imprimer_adresse: number | null
+  texte_entete: string | null
+}
+
+export interface OrdonnanceLigneRow {
+  compteur_ligne: number
+  compteur_ordonnance: number
+  ordre: number
+  nom_medicament: string | null
+  posologie: string | null
+}
+
+export interface OrdonnanceData {
+  ordonnances: OrdonnanceRow[]
+  lignes: OrdonnanceLigneRow[]
+}
+
+export interface OrdonnanceHeaderPayload {
+  dureeValeur: string
+  dureeUnite: string
+  aRenouvelerFois: number | null
+  prochainControle: string
+  flagInteractions: boolean
+  flagAllergie: boolean
+  flagIntolerance: boolean
+  flagDiagnostic: boolean
+  flagTare: boolean
+  imprimerEntete: boolean
+  imprimerNomPrenom: boolean
+  imprimerDateNaissance: boolean
+  imprimerAdresse: boolean
+  texteEntete: string
+}
+
+export interface OrdonnanceLignePayload {
+  ordre: number
+  nom: string
+  posologie: string
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -98,6 +157,32 @@ declare global {
       }) => Promise<{ rows: PatientRow[]; hasMore: boolean }>
       getPatient: (compteur: number) => Promise<PatientFull | null>
       getConsultations: (compteur: number) => Promise<ConsultData>
+
+      loadOrdonnancesForDossier: (
+        compteur: number,
+        numeroDossier: string | number
+      ) => Promise<OrdonnanceData>
+      createOrdonnance: (p: OrdonnanceHeaderPayload & {
+        compteur: number
+        numeroDossier: string
+        numeroConsultation: number | null
+        dateOrdonnance: string
+        heureOrdonnance: string
+        lignes: OrdonnanceLignePayload[]
+      }) => Promise<{ ok: boolean; compteurOrdonnance?: number; error?: string }>
+      saveOrdonnance: (p: OrdonnanceHeaderPayload & {
+        compteurOrdonnance: number
+      }) => Promise<{ ok: boolean; error?: string }>
+      saveOrdonnanceLigne: (p: {
+        compteurOrdonnance: number
+        compteurLigne: number | null
+        ordre: number
+        nom: string
+        posologie: string
+      }) => Promise<{ ok: boolean; error?: string }>
+      deleteOrdonnanceLigne: (compteurLigne: number) => Promise<{ ok: boolean; error?: string }>
+      deleteOrdonnance: (compteurOrdonnance: number) => Promise<{ ok: boolean; error?: string }>
+
       lookupSearch: (p: { source: string; value: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
       lookupLoadMore: (p: { source: string; value: string; anchor: string }) => Promise<{ vals: string[]; hasAfter: boolean }>
     }
