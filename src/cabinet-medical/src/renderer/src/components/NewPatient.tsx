@@ -7,6 +7,7 @@ import { fr } from 'date-fns/locale'
 import 'react-datepicker/dist/react-datepicker.css'
 import './PatientSearch.css'
 import './NewPatient.css'
+import { Topbar } from './Topbar'
 
 registerLocale('fr', fr)
 
@@ -490,37 +491,26 @@ export default function NewPatient({ onBack, editCompteur }: Props) {
   return (
     <div className="ps-shell">
 
-      {/* ── Top bar ── */}
-      <div className="ps-topbar">
-        <div className="ps-topbar-inner">
-          <h1 className="ps-title">{editCompteur ? 'Édition fiche administrative' : 'Fiche administrative'}</h1>
-          <div className="ps-topbar-btns">
-            {!editCompteur && (
-              <button className="ps-btn" onClick={() => {
-                setForm(emptyForm())
-                setFeedback(null)
-                window.api.getNextDossier().then(code => {
-                  if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
-                })
-              }}>Nouvelle fiche</button>
-            )}
-            <button className="ps-btn" disabled>Imprimer</button>
-            <button className="ps-btn" onClick={onBack}>Menu général</button>
-            {editCompteur && (
-              <button className="ps-btn np-btn--danger" onClick={() => { setDeleteInput(''); setShowDeleteModal(true) }}>
-                Supprimer
-              </button>
-            )}
-            <button
-              className="ps-btn np-btn--primary"
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? 'Enregistrement…' : editCompteur ? 'Mettre à jour' : 'Enregistrer'}
-            </button>
-          </div>
-        </div>
-      </div>
+      <Topbar title={editCompteur ? 'Édition fiche administrative' : 'Fiche administrative'} onBack={onBack}>
+        {!editCompteur && (
+          <button className="topbar-btn" onClick={() => {
+            setForm(emptyForm())
+            setFeedback(null)
+            window.api.getNextDossier().then(code => {
+              if (code) setForm(prev => ({ ...prev, numero_dossier: code }))
+            })
+          }}>Nouvelle fiche</button>
+        )}
+        <button className="topbar-btn" disabled>Imprimer</button>
+        {editCompteur && (
+          <button className="topbar-btn topbar-btn--danger" onClick={() => { setDeleteInput(''); setShowDeleteModal(true) }}>
+            Supprimer
+          </button>
+        )}
+        <button className="topbar-btn topbar-btn--primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Enregistrement…' : editCompteur ? 'Mettre à jour' : 'Enregistrer'}
+        </button>
+      </Topbar>
 
       {/* ── Workspace ── */}
       <div className="ps-workspace">

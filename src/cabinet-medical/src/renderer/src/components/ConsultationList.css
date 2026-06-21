@@ -12,43 +12,6 @@
     linear-gradient(135deg, #14322a 0%, #1d4a3a 48%, #234f3f 100%);
 }
 
-/* ── Topbar ── */
-.cl-topbar {
-  flex-shrink: 0;
-  background: transparent;
-  border-bottom: 1px solid rgba(255,255,255,0.22);
-}
-.cl-topbar-inner {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 calc(24px * var(--ui-scale));
-  height: calc(46px * var(--ui-scale));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.cl-title {
-  margin: 0;
-  font-size: calc(20px * var(--ui-scale));
-  font-weight: 700;
-  color: #f7f7f7;
-  letter-spacing: 0.4px;
-}
-.cl-topbar-btns { display: flex; gap: calc(8px * var(--ui-scale)); }
-.cl-btn {
-  border: 1px solid rgba(255,255,255,0.22);
-  background: #fff;
-  color: #000;
-  font-size: calc(13px * var(--ui-scale));
-  font-weight: 600;
-  padding: calc(5px * var(--ui-scale)) calc(12px * var(--ui-scale));
-  border-radius: 3px;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-.cl-btn:hover { background: #d3d3d3; }
-.cl-btn:focus-visible { outline: none; }
-
 /* ── Workspace ── */
 .cl-workspace {
   flex: 1;

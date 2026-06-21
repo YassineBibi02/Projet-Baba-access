@@ -8,6 +8,8 @@ export interface PatientRow {
   date_de_naissance: string | null
   ville: string | null
   tel_domicile: string | null
+  notesstate: string | null
+  date_1ere_consultation: string | null
 }
 
 export interface SearchResult {
@@ -212,6 +214,13 @@ declare global {
       updatePatient: (compteur: number, data: Record<string, string | number | null>) => Promise<{ ok: boolean; error?: string }>
       createPatient: (data: Record<string, string | number | null>) => Promise<{ ok: boolean; compteur?: number; error?: string }>
       loadDossier: (compteur: number) => Promise<DossierData>
+      listPatients: (p: {
+        offset: number
+        limit: number
+        sortField: 'nom' | 'prenom' | 'code' | 'naissance' | 'premiere' | null
+        sortDir: 'asc' | 'desc'
+        search: string
+      }) => Promise<{ rows: PatientRow[]; total: number }>
     }
   }
 }

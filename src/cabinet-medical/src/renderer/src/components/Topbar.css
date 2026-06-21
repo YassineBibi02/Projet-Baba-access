@@ -1,0 +1,95 @@
+.topbar {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #14322a 0%, #1d4a3a 100%);
+  border-bottom: 1px solid rgba(255,255,255,0.22);
+}
+
+.topbar-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 calc(24px * var(--ui-scale));
+  height: calc(46px * var(--ui-scale));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(12px * var(--ui-scale));
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--ui-scale));
+  min-width: 0;
+}
+
+/* ── Back button (arrow icon) ── */
+.topbar-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: calc(30px * var(--ui-scale));
+  height: calc(30px * var(--ui-scale));
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: calc(5px * var(--ui-scale));
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  font-family: inherit;
+}
+.topbar-back:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+.topbar-back:focus-visible { outline: none; }
+
+.topbar-back-icon {
+  width: calc(17px * var(--ui-scale));
+  height: calc(17px * var(--ui-scale));
+}
+
+.topbar-title {
+  margin: 0;
+  font-size: calc(20px * var(--ui-scale));
+  font-weight: 700;
+  color: #f7f7f7;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(8px * var(--ui-scale));
+  flex-shrink: 0;
+}
+
+/* ── Shared action button ── */
+.topbar-btn {
+  font-family: inherit;
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 600;
+  padding: calc(5px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 3px;
+  background: #fff;
+  color: #000;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+.topbar-btn:hover:not(:disabled) { background: #d3d3d3; }
+.topbar-btn:focus-visible { outline: none; }
+.topbar-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.topbar-btn--primary { background: #dcfce7 !important; color: #065f46 !important; border-color: #6ee7b7 !important; }
+.topbar-btn--primary:hover:not(:disabled) { background: #d1fae5 !important; }
+
+.topbar-btn--danger { background: #fee2e2 !important; color: #991b1b !important; border-color: #fca5a5 !important; }
+.topbar-btn--danger:hover:not(:disabled) { background: #fecaca !important; }
+
+.topbar-btn--save { background: #059669 !important; color: #fff !important; border-color: #059669 !important; }
+.topbar-btn--save:hover:not(:disabled) { background: #047857 !important; }

@@ -34,7 +34,9 @@ const api = {
   updatePatient: (compteur: number, data: Record<string, string | number | null>) =>
     ipcRenderer.invoke('patients:update', compteur, data),
   createPatient: (data: Record<string, string | number | null>) => ipcRenderer.invoke('patients:create', data),
-  loadDossier: (compteur: number) => ipcRenderer.invoke('dossier:load', compteur)
+  loadDossier: (compteur: number) => ipcRenderer.invoke('dossier:load', compteur),
+  listPatients: (p: { offset: number; limit: number; sortField: string | null; sortDir: string; search: string }) =>
+    ipcRenderer.invoke('patients:list', p)
 }
 
 if (process.contextIsolated) {

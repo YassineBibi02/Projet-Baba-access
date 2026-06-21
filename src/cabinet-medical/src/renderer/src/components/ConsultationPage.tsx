@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import './ConsultationPage.css'
+import { Topbar } from './Topbar'
 
 interface ThemePanel {
   key: string
@@ -189,9 +190,15 @@ export default function ConsultationPage({
   }
 
   function navigate(delta: number) {
+    // When isNew, the "current" virtual position is `total` (one past the last existing).
+    // Navigate relative to that so ◄ correctly lands on the last existing consultation.
+    const from = isNew ? total : currentIndex
     setIsNew(false)
-    setCurrentIndex(prev => Math.max(0, Math.min(total - 1, prev + delta)))
+    setCurrentIndex(Math.max(0, Math.min(total - 1, from + delta)))
   }
+
+  function goFirst() { setIsNew(false); setCurrentIndex(0) }
+  function goLast()  { setIsNew(false); setCurrentIndex(Math.max(0, total - 1)) }
 
   function updatePanel(key: string, content: string) {
     setPanels(prev => prev.map(p => p.key === key ? { ...p, content, isDirty: true } : p))
@@ -312,21 +319,14 @@ export default function ConsultationPage({
   return (
     <div className="cp-shell">
 
-      {/* Topbar */}
-      <div className="cp-topbar">
-        <div className="cp-topbar-inner">
-          <h1 className="cp-title">CONSULTATIONS</h1>
-          <div className="cp-topbar-btns">
-            {hasDirty && !saving && (
-              <span className="cp-unsaved-hint">Modifications non enregistrées</span>
-            )}
-            <button className="cp-save-btn" onClick={handleSave} disabled={saving}>
-              {saving ? 'Enregistrement…' : 'Enregistrer'}
-            </button>
-            <button className="cp-menu-btn" onClick={onBack}>Menu général</button>
-          </div>
-        </div>
-      </div>
+      <Topbar title="Consultations" onBack={onBack}>
+        {hasDirty && !saving && (
+          <span className="cp-unsaved-hint">Modifications non enregistrées</span>
+        )}
+        <button className="topbar-btn topbar-btn--save" onClick={handleSave} disabled={saving}>
+          {saving ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </Topbar>
 
       {/* Scrollable workspace */}
       <div className="cp-workspace">
@@ -350,20 +350,20 @@ export default function ConsultationPage({
           {/* ── Inline navigation (between patient name and dossier) ── */}
           <div className="cp-inav">
             <button className="cp-inav-btn"
-              onClick={() => navigate(-currentIndex)}
-              disabled={isNew || currentIndex === 0 || total === 0}
+              onClick={goFirst}
+              disabled={total === 0 || (!isNew && currentIndex === 0)}
               title="Première">|◄</button>
             <button className="cp-inav-btn"
               onClick={() => navigate(-1)}
-              disabled={isNew || currentIndex === 0 || total === 0}
+              disabled={total === 0 || (!isNew && currentIndex === 0)}
               title="Précédente">◄ Précédente</button>
             <button className="cp-inav-btn"
               onClick={() => navigate(1)}
-              disabled={isNew || currentIndex >= total - 1 || total === 0}
+              disabled={isNew || total === 0 || currentIndex >= total - 1}
               title="Suivante">Suivante ►</button>
             <button className="cp-inav-btn"
-              onClick={() => navigate(total - 1 - currentIndex)}
-              disabled={isNew || currentIndex >= total - 1 || total === 0}
+              onClick={goLast}
+              disabled={isNew || total === 0 || currentIndex >= total - 1}
               title="Dernière">►|</button>
             <div className="cp-inav-sep" />
             <button
@@ -504,17 +504,19 @@ export default function ConsultationPage({
 
       {/* Delete consultation modal */}
       {deleteConfirm && (
-        <div className="cp-modal-overlay">
-          <div className="cp-modal">
-            <p className="cp-modal-text">
-              Supprimer la consultation N°{currentConsult?.numero_consultation} ?
-              <br /><small>Cette action est irréversible.</small>
+        <div className="np-modal-overlay" onClick={() => setDeleteConfirm(false)}>
+          <div className="np-modal" onClick={e => e.stopPropagation()}>
+            <h2 className="np-modal-title">Supprimer la consultation</h2>
+            <p className="np-modal-body">
+              Cette action est <strong>irréversible</strong>. La consultation{' '}
+              <strong>N°{currentConsult?.numero_consultation}</strong> du{' '}
+              <strong>{fmtDateFR(currentConsult?.date_consultation)}</strong> sera définitivement supprimée.
             </p>
-            <div className="cp-modal-btns">
-              <button className="cp-modal-btn cp-modal-btn--danger"
-                onClick={handleDelete} disabled={saving}>Supprimer</button>
-              <button className="cp-modal-btn"
-                onClick={() => setDeleteConfirm(false)}>Annuler</button>
+            <div className="np-modal-actions">
+              <button className="np-modal-btn np-modal-btn--cancel" onClick={() => setDeleteConfirm(false)}>Annuler</button>
+              <button className="np-modal-btn np-modal-btn--delete" onClick={handleDelete} disabled={saving}>
+                {saving ? 'Suppression…' : 'Supprimer définitivement'}
+              </button>
             </div>
           </div>
         </div>

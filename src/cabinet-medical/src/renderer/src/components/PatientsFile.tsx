@@ -1,32 +1,29 @@
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import "./PatientsFile.css";
+import { Topbar } from "./Topbar";
+import NewPatient from "./NewPatient";
+import VisuDossier from "./VisuDossier";
+import ConsultationPage from "./ConsultationPage";
+import type { PatientRow } from "../../../preload/index.d";
 
-interface Props {
-  onBack: () => void;
-}
+interface Props { onBack: () => void }
 
-interface Patient {
-  compteur: number;
-  nom: string | null;
-  prenom: string | null;
-  n_dossier: string | null;
-  notesstate: string | null;
-  date_de_naissance: string | null;
-  date_1ere_consultation: string | null;
-}
+type SortKey = "nom" | "prenom" | "code" | "naissance" | "premiere";
+type Overlay = null | "new" | "edit" | "visu" | "consult";
 
-type SortKey = "nom" | "prenom" | "code" | "naissance";
-type SortDir = "asc" | "desc" | null;
+interface OpenConsultData { numeroDossier: number | string; lastN: number }
 
-const CHUNK = 500;
-const SCROLL_THRESHOLD = 200; // px avant le bas du tableau pour déclencher le lot suivant
+const PAGE_SIZES = [25, 50, 100, 200] as const;
 
-const SORT_LABELS: Record<SortKey, string> = {
-  nom: "Nom",
-  prenom: "Prénom",
-  code: "Code dossier",
-  naissance: "Date de naissance",
-};
+const COLGROUP = (
+  <colgroup>
+    <col className="pf-col-nom" />
+    <col className="pf-col-prenom" />
+    <col className="pf-col-code" />
+    <col className="pf-col-naissance" />
+    <col className="pf-col-premiere" />
+  </colgroup>
+);
 
 function parseAccessDate(raw: string | null): Date | null {
   if (!raw) return null;
@@ -39,86 +36,17 @@ function parseAccessDate(raw: string | null): Date | null {
 function fmtDate(raw: string | null): string {
   const d = parseAccessDate(raw);
   if (!d) return "—";
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
 }
 
-// Le code dossier suit le format "ZZZZ/XX" : un tri sur la chaîne brute est
-// faux ("9/24" se retrouverait après "10/24"). On extrait la partie
-// numérique avant le "/" et on compare des nombres.
-function parseDossierNum(code: string | null): number {
-  if (!code) return -Infinity;
-  const head = code.split("/")[0].trim();
-  const n = parseInt(head.replace(/\D/g, ""), 10);
-  return isNaN(n) ? -Infinity : n;
+function pageNumbers(current: number, total: number): (number | "…")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (current <= 4) return [1, 2, 3, 4, 5, "…", total];
+  if (current >= total - 3) return [1, "…", total-4, total-3, total-2, total-1, total];
+  return [1, "…", current-1, current, current+1, "…", total];
 }
 
-interface ModalProps {
-  patient: Patient;
-  onClose: () => void;
-}
-
-function PatientModal({ patient, onClose }: ModalProps) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-
-  return (
-    <div
-      className="pf-modal-overlay"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="pf-modal">
-        <div className="pf-modal-header">
-          <div className="pf-modal-avatar">
-            {(patient.prenom?.[0] ?? patient.nom?.[0] ?? "?").toUpperCase()}
-          </div>
-          <div className="pf-modal-identity">
-            <div className="pf-modal-name">
-              {[patient.prenom, patient.nom].filter(Boolean).join(" ") || "—"}
-            </div>
-            <div className="pf-modal-code">Code dossier : {patient.n_dossier ?? "—"}</div>
-          </div>
-          <button type="button" className="pf-modal-close" onClick={onClose} aria-label="Fermer">
-            ×
-          </button>
-        </div>
-        <div className="pf-modal-body">
-          <div className="pf-modal-row">
-            <span className="pf-modal-label">Nom</span>
-            <span className="pf-modal-val">{patient.nom ?? "—"}</span>
-          </div>
-          <div className="pf-modal-row">
-            <span className="pf-modal-label">Prénom</span>
-            <span className="pf-modal-val">{patient.prenom ?? "—"}</span>
-          </div>
-          <div className="pf-modal-row">
-            <span className="pf-modal-label">N° dossier</span>
-            <span className="pf-modal-val" style={{ fontFamily: "monospace", fontWeight: 700 }}>{patient.n_dossier ?? "—"}</span>
-          </div>
-          <div className="pf-modal-row">
-            <span className="pf-modal-label">Date de naissance</span>
-            <span className="pf-modal-val">{fmtDate(patient.date_de_naissance)}</span>
-          </div>
-          <div className="pf-modal-row">
-            <span className="pf-modal-label">1ère consultation</span>
-            <span className="pf-modal-val">{fmtDate(patient.date_1ere_consultation)}</span>
-          </div>
-          <div className="pf-modal-row">
-            <span className="pf-modal-label">Fiche notes</span>
-            <span className="pf-modal-val">{patient.notesstate ? "Oui" : "Non"}</span>
-          </div>
-        </div>
-        <div className="pf-modal-footer">
-          <button type="button" className="pf-btn" onClick={onClose}>Fermer</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SortIcon({ dir }: { dir: SortDir }) {
+function SortIcon({ dir }: { dir: "asc" | "desc" | null }) {
   return (
     <span className="pf-sort-icon" aria-hidden="true">
       <span className={`pf-sort-arrow pf-sort-arrow--up${dir === "asc" ? " is-active" : ""}`}>▲</span>
@@ -127,250 +55,420 @@ function SortIcon({ dir }: { dir: SortDir }) {
   );
 }
 
+// Spinning arc that fills to 100% when `done` is set
+function LoadingRing({ done }: { done: boolean }) {
+  const r = 22, cx = 26, cy = 26;
+  const circ = 2 * Math.PI * r;
+  return (
+    // Spin the SVG itself (not a wrapper) so when animation stops it resets to rotate(0),
+    // and the SVG-attribute rotate(180 cx cy) on the arc still puts the start at 9 o'clock.
+    <svg
+      width="52" height="52"
+      viewBox="0 0 52 52"
+      style={{ display: "block", transformBox: "fill-box", transformOrigin: "center" }}
+      className={done ? "pf-ring" : "pf-ring pf-ring--spinning"}
+    >
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e5e7eb" strokeWidth={3.5} />
+      <circle
+        cx={cx} cy={cy} r={r}
+        fill="none"
+        stroke="#065f46"
+        strokeWidth={3.5}
+        strokeLinecap="round"
+        strokeDasharray={circ}
+        strokeDashoffset={done ? 0 : circ * 0.28}
+        transform={`rotate(180 ${cx} ${cy})`}
+        style={{ transition: done ? "stroke-dashoffset 0.35s ease" : "none" }}
+      />
+    </svg>
+  );
+}
+
 export default function PatientsFile({ onBack }: Props) {
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>(null);
-  const [visibleCount, setVisibleCount] = useState(CHUNK);
-  const [modalPatient, setModalPatient] = useState<Patient | null>(null);
+  const [rows, setRows]               = useState<PatientRow[]>([]);
+  const [total, setTotal]             = useState(0);
+  const [loading, setLoading]         = useState(true);
+  const [ringDone, setRingDone]       = useState(false);
+  const [firstLoad, setFirstLoad]     = useState(true);
+  const [reloadKey, setReloadKey]     = useState(0);
 
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch]           = useState("");
+  const [sortKey, setSortKey]         = useState<SortKey | null>(null);
+  const [sortDir, setSortDir]         = useState<"asc" | "desc">("asc");
+  const [page, setPage]               = useState(1);
+  const [pageSize, setPageSize]       = useState<typeof PAGE_SIZES[number]>(50);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const rows = await window.api.listPatients();
-        if (!cancelled) setPatients(rows);
-      } catch {
-        if (!cancelled) setPatients([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
+  const [selectedId, setSelectedId]   = useState<number | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<PatientRow | null>(null);
+  const [overlay, setOverlay]         = useState<Overlay>(null);
+  const [openConsultData, setOpenConsultData] = useState<OpenConsultData | null>(null);
+
+  // Delete modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteInput, setDeleteInput]         = useState("");
+  const [deleting, setDeleting]               = useState(false);
+  const [deleteResult, setDeleteResult]       = useState<{ ok: boolean; error?: string } | null>(null);
+  const [countdown, setCountdown]             = useState(3);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
   }, []);
 
-  const filtered = useMemo(() => {
-    const v = search.toLowerCase().trim();
-    const base = v
-      ? patients.filter(
-          (p) =>
-            (p.nom ?? "").toLowerCase().includes(v) ||
-            (p.prenom ?? "").toLowerCase().includes(v) ||
-            (p.n_dossier ?? "").toLowerCase().includes(v)
-        )
-      : patients;
-
-    if (!sortKey || !sortDir) return base;
-
-    const mult = sortDir === "asc" ? 1 : -1;
-    return [...base].sort((a, b) => {
-      switch (sortKey) {
-        case "prenom":
-          return mult * (a.prenom ?? "").localeCompare(b.prenom ?? "");
-        case "code":
-          return mult * (parseDossierNum(a.n_dossier) - parseDossierNum(b.n_dossier));
-        case "naissance": {
-          const da = parseAccessDate(a.date_de_naissance)?.getTime() ?? -Infinity;
-          const db = parseAccessDate(b.date_de_naissance)?.getTime() ?? -Infinity;
-          return mult * (da - db);
-        }
-        default:
-          return mult * (a.nom ?? "").localeCompare(b.nom ?? "");
-      }
-    });
-  }, [patients, search, sortKey, sortDir]);
-
-  // À chaque nouvelle recherche / nouveau tri, on revient au premier lot de 500
+  // ── Server-side data load (one page at a time) ───────────────────────
   useEffect(() => {
-    setVisibleCount(CHUNK);
-    wrapperRef.current?.scrollTo({ top: 0 });
-  }, [search, sortKey, sortDir]);
+    let cancelled = false;
+    setLoading(true);
+    setRingDone(false);
 
-  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+    window.api.listPatients({
+      offset: (page - 1) * pageSize,
+      limit: pageSize,
+      sortField: sortKey,
+      sortDir,
+      search,
+    }).then(result => {
+      if (cancelled) return;
+      setRows(result.rows as PatientRow[]);
+      setTotal(result.total);
+      setRingDone(true);
+      // Brief pause so 100% ring is visible, then clear loading
+      setTimeout(() => {
+        if (!cancelled) { setLoading(false); setFirstLoad(false); }
+      }, 280);
+    }).catch(() => {
+      if (!cancelled) { setLoading(false); setFirstLoad(false); }
+    });
 
-  const loadMore = useCallback(() => {
-    setVisibleCount((c) => Math.min(c + CHUNK, filtered.length));
-  }, [filtered.length]);
+    return () => { cancelled = true; };
+  }, [page, pageSize, search, sortKey, sortDir, reloadKey]);
 
-  const handleScroll = useCallback(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_THRESHOLD) {
-      loadMore();
-    }
-  }, [loadMore]);
+  const reload = useCallback(() => {
+    setSelectedId(null);
+    setSelectedPatient(null);
+    setReloadKey(k => k + 1);
+  }, []);
 
+  // ── Search debounce ───────────────────────────────────────────────────
+  const handleSearchChange = (v: string) => {
+    setSearchInput(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearch(v);
+      setPage(1);
+    }, 300);
+  };
+
+  // ── Sort ──────────────────────────────────────────────────────────────
   const handleSort = useCallback((key: SortKey) => {
     if (sortKey !== key) {
       setSortKey(key);
       setSortDir("asc");
-    } else if (sortDir === "asc") {
-      setSortDir("desc");
-    } else if (sortDir === "desc") {
-      setSortKey(null);
-      setSortDir(null);
+      setPage(1);
     } else {
-      setSortDir("asc");
+      setSortDir(prev => prev === "asc" ? "desc" : "asc");
+      setPage(1);
     }
-  }, [sortKey, sortDir]);
+  }, [sortKey]);
 
-  const handleSearch = useCallback((v: string) => {
-    setSearch(v);
-  }, []);
+  const goTo = (p: number) => {
+    const total_pages = Math.max(1, Math.ceil(total / pageSize));
+    setPage(Math.max(1, Math.min(p, total_pages)));
+  };
 
-  const handleRowClick = useCallback((id: number) => {
-    setSelectedId(id);
-  }, []);
+  // ── Row click: track selection ────────────────────────────────────────
+  const handleRowClick = (p: PatientRow) => {
+    setSelectedId(p.compteur);
+    setSelectedPatient(p);
+  };
 
-  const handleRowDblClick = useCallback((p: Patient) => {
-    setModalPatient(p);
-  }, []);
+  // ── Delete ────────────────────────────────────────────────────────────
+  const norm = (s: string | null) => (s ?? "").trim().toUpperCase();
+  const deleteConfirmed = deleteInput.trim().toUpperCase() === norm(selectedPatient?.nom ?? "");
 
-  const scrollTop = useCallback(() => {
-    wrapperRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
+  async function handleDelete() {
+    if (!selectedId || !deleteConfirmed || deleting) return;
+    setDeleting(true);
+    const result = await window.api.deletePatient(selectedId);
+    setDeleting(false);
+    if (result.ok) {
+      setShowDeleteModal(false);
+      setDeleteInput("");
+      setDeleteResult({ ok: true });
+      setCountdown(3);
+      countdownRef.current = setInterval(() => {
+        setCountdown(c => {
+          if (c <= 1) {
+            clearInterval(countdownRef.current!);
+            setDeleteResult(null);
+            reload();
+            return 3;
+          }
+          return c - 1;
+        });
+      }, 1000);
+    } else {
+      setDeleteResult({ ok: false, error: result.error });
+    }
+  }
+
+  // ── Overlay actions ───────────────────────────────────────────────────
+  async function handleOpenConsult() {
+    if (!selectedId || !selectedPatient) return;
+    const data = await window.api.getConsultations(selectedId);
+    const consults = data?.consultations ?? [];
+    const numeroDossier = consults[0]?.numero_dossier_medical ?? 1;
+    const lastN = consults.length > 0
+      ? Number(consults[consults.length - 1].numero_consultation ?? 0) : 0;
+    setOpenConsultData({ numeroDossier, lastN });
+    setOverlay("consult");
+  }
+
+  // ── Overlay renders ───────────────────────────────────────────────────
+  if (overlay === "new") {
+    return <NewPatient onBack={() => { setOverlay(null); reload(); }} />;
+  }
+  if (overlay === "edit" && selectedPatient) {
+    return <NewPatient editCompteur={selectedPatient.compteur} onBack={() => { setOverlay(null); reload(); }} />;
+  }
+  if (overlay === "visu" && selectedPatient) {
+    return (
+      <VisuDossier
+        patient={{
+          compteur: selectedPatient.compteur,
+          nom: selectedPatient.nom,
+          prenom: selectedPatient.prenom,
+          n_dossier: selectedPatient.n_dossier,
+          date_de_naissance: selectedPatient.date_de_naissance,
+          notesstate: selectedPatient.notesstate,
+        }}
+        onBack={() => setOverlay(null)}
+        onMenu={onBack}
+      />
+    );
+  }
+  if (overlay === "consult" && selectedPatient && openConsultData) {
+    return (
+      <ConsultationPage
+        compteur={selectedPatient.compteur}
+        nom={selectedPatient.nom}
+        prenom={selectedPatient.prenom}
+        dateNaissance={selectedPatient.date_de_naissance}
+        notesState={selectedPatient.notesstate}
+        numeroDossier={openConsultData.numeroDossier}
+        initialNumeroConsultation={openConsultData.lastN}
+        autoNew
+        onBack={() => { setOverlay(null); setOpenConsultData(null); }}
+      />
+    );
+  }
+
+  // ── Pagination helpers ────────────────────────────────────────────────
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasSelected = selectedId !== null;
+  const showRing = firstLoad && loading;
 
   return (
     <div className="pf-page">
-      {modalPatient && (
-        <PatientModal patient={modalPatient} onClose={() => setModalPatient(null)} />
-      )}
+      <Topbar title="Fichier Patients" onBack={onBack} />
 
-      <div className="pf-shell">
-        <header className="pf-header">
-          <div className="pf-title-group">
-            <span className="pf-kicker">Gestion administrative médicale</span>
-            <h1 className="pf-title">Fichier Patients</h1>
-            <span className="pf-subtitle">Consultation et gestion des fiches patients</span>
-          </div>
-          <div className="pf-toolbar">
-            <button type="button" className="pf-btn">Ouvrir fiche</button>
-            <button type="button" className="pf-btn pf-btn--primary">Nouvelle fiche</button>
-            <button type="button" className="pf-btn pf-btn--danger">Supprimer</button>
-            <button type="button" className="pf-btn" onClick={onBack}>Menu général</button>
-          </div>
-        </header>
+      <div className="pf-workspace">
+        <div className="pf-content">
 
-        <section className="pf-controls">
-          <div className="pf-order">
-            <span className="pf-order-label">Tri</span>
-            <span className="pf-order-hint">
-              {sortKey && sortDir
-                ? `${SORT_LABELS[sortKey]} · ${sortDir === "asc" ? "croissant" : "décroissant"}`
-                : "Cliquez sur un en-tête de colonne"}
-            </span>
-            {sortKey && (
-              <button
-                type="button"
-                className="pf-chip"
-                onClick={() => { setSortKey(null); setSortDir(null); }}
-              >
-                Réinitialiser
-              </button>
+          {/* Search + actions */}
+          <div className="pf-search-bar">
+            <input
+              className="pf-search-input"
+              type="text"
+              placeholder="Rechercher par nom, prénom ou code dossier…"
+              value={searchInput}
+              onChange={e => handleSearchChange(e.target.value)}
+              spellCheck={false}
+            />
+            <button className="pf-action-btn" onClick={() => setOverlay("new")}>Nouveau patient</button>
+            <button className="pf-action-btn" disabled={!hasSelected} onClick={() => setOverlay("edit")}>Modifier patient</button>
+            <button
+              className="pf-action-btn pf-action-btn--danger"
+              disabled={!hasSelected}
+              onClick={() => { setDeleteInput(""); setDeleteResult(null); setShowDeleteModal(true); }}
+            >Supprimer patient</button>
+          </div>
+
+          {/* Table area */}
+          <div className="pf-table-wrap">
+            {showRing ? (
+              /* Initial load: full loading screen */
+              <div className="pf-loading-wrap">
+                <LoadingRing done={ringDone} />
+                <div className="pf-loading-text">Chargement des patients…</div>
+              </div>
+            ) : rows.length === 0 && !loading ? (
+              <div className="pf-state">{search ? "Aucun résultat." : "Aucun patient."}</div>
+            ) : (
+              <>
+                {/* Header — overflow-y: scroll + invisible scrollbar so it reserves the same gutter width as the body */}
+                <div className="pf-thead-wrap">
+                  <table className="pf-table">
+                    {COLGROUP}
+                    <thead>
+                      <tr>
+                        <th onClick={() => handleSort("nom")}>Nom <SortIcon dir={sortKey === "nom" ? sortDir : null} /></th>
+                        <th onClick={() => handleSort("prenom")}>Prénom <SortIcon dir={sortKey === "prenom" ? sortDir : null} /></th>
+                        <th onClick={() => handleSort("code")}>Code dossier <SortIcon dir={sortKey === "code" ? sortDir : null} /></th>
+                        <th onClick={() => handleSort("naissance")}>Date de naissance <SortIcon dir={sortKey === "naissance" ? sortDir : null} /></th>
+                        <th onClick={() => handleSort("premiere")}>1ère consultation <SortIcon dir={sortKey === "premiere" ? sortDir : null} /></th>
+                      </tr>
+                    </thead>
+                  </table>
+                </div>
+                {/* Body — the ONLY scrollable container */}
+                <div className={`pf-tbody-wrap${loading ? " pf-tbody-wrap--loading" : ""}`}>
+                  <table className="pf-table">
+                    {COLGROUP}
+                    <tbody>
+                      {rows.map(p => (
+                        <tr
+                          key={p.compteur}
+                          className={p.compteur === selectedId ? "is-selected" : ""}
+                          onClick={() => handleRowClick(p)}
+                        >
+                          <td className="pf-td-bold">{p.nom ?? "—"}</td>
+                          <td>{p.prenom ?? "—"}</td>
+                          <td className="pf-td-code">{p.n_dossier ?? "—"}</td>
+                          <td>{fmtDate(p.date_de_naissance)}</td>
+                          <td>{fmtDate(p.date_1ere_consultation)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
 
-          <div className="pf-controls-right">
-            <div className="pf-search">
-              <div className="pf-search-box">
-                <span className="pf-search-icon">⌕</span>
-                <input
-                  type="text"
-                  placeholder="Recherche patient..."
-                  className="pf-search-input"
-                  value={search}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  autoComplete="off"
-                />
+          {/* Pagination */}
+          {!firstLoad && total > 0 && (
+            <div className="pf-pagination">
+              <div className="pf-pagination-left">
+                <label className="pf-page-size-label" htmlFor="pf-page-size">Lignes :</label>
+                <select
+                  id="pf-page-size"
+                  className="pf-page-size-select"
+                  value={pageSize}
+                  onChange={e => { setPageSize(Number(e.target.value) as typeof PAGE_SIZES[number]); setPage(1); }}
+                >
+                  {PAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <span className="pf-pagination-info">
+                  {total} patient{total !== 1 ? "s" : ""} — page {page} / {totalPages}
+                </span>
+              </div>
+              <div className="pf-pagination-controls">
+                <button className="pf-page-btn" onClick={() => goTo(1)} disabled={page === 1}>«</button>
+                <button className="pf-page-btn" onClick={() => goTo(page - 1)} disabled={page === 1}>‹</button>
+                {pageNumbers(page, totalPages).map((n, i) =>
+                  n === "…"
+                    ? <span key={`e${i}`} className="pf-page-ellipsis">…</span>
+                    : <button
+                        key={n}
+                        className={`pf-page-btn${n === page ? " is-active" : ""}`}
+                        onClick={() => goTo(n as number)}
+                      >{n}</button>
+                )}
+                <button className="pf-page-btn" onClick={() => goTo(page + 1)} disabled={page === totalPages}>›</button>
+                <button className="pf-page-btn" onClick={() => goTo(totalPages)} disabled={page === totalPages}>»</button>
               </div>
             </div>
-          </div>
-        </section>
-
-        <div className="pf-table-wrapper" ref={wrapperRef} onScroll={handleScroll}>
-          {loading ? (
-            <div className="pf-empty">Chargement des patients…</div>
-          ) : filtered.length === 0 ? (
-            <div className="pf-empty">Aucun patient trouvé</div>
-          ) : (
-            <table className="pf-table">
-              <thead>
-                <tr>
-                  <th className="pf-col-index">#</th>
-                  <th className="pf-col-name pf-th-sortable" onClick={() => handleSort("nom")}>
-                    <span className="pf-th-inner">Nom<SortIcon dir={sortKey === "nom" ? sortDir : null} /></span>
-                  </th>
-                  <th className="pf-col-firstname pf-th-sortable" onClick={() => handleSort("prenom")}>
-                    <span className="pf-th-inner">Prénom<SortIcon dir={sortKey === "prenom" ? sortDir : null} /></span>
-                  </th>
-                  <th className="pf-col-code pf-th-sortable" onClick={() => handleSort("code")}>
-                    <span className="pf-th-inner">Code dossier<SortIcon dir={sortKey === "code" ? sortDir : null} /></span>
-                  </th>
-                  <th className="pf-col-notes">Notes</th>
-                  <th className="pf-col-birth pf-th-sortable" onClick={() => handleSort("naissance")}>
-                    <span className="pf-th-inner">Né(e) le<SortIcon dir={sortKey === "naissance" ? sortDir : null} /></span>
-                  </th>
-                  <th className="pf-col-consult">1ère consultation</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((patient, index) => (
-                  <tr
-                    key={patient.compteur}
-                    className={selectedId === patient.compteur ? "pf-row-active" : ""}
-                    onClick={() => handleRowClick(patient.compteur)}
-                    onDoubleClick={() => handleRowDblClick(patient)}
-                  >
-                    <td className="pf-col-index">{index + 1}</td>
-                    <td className="pf-col-name">{patient.nom ?? "—"}</td>
-                    <td className="pf-col-firstname">{patient.prenom ?? "—"}</td>
-                    <td className="pf-col-code">{patient.n_dossier ?? "—"}</td>
-                    <td className="pf-col-notes">
-                      <span className={patient.notesstate ? "pf-note-box pf-note-box--checked" : "pf-note-box"} />
-                    </td>
-                    <td className="pf-col-birth">{fmtDate(patient.date_de_naissance)}</td>
-                    <td className="pf-col-consult">{fmtDate(patient.date_1ere_consultation)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           )}
+
         </div>
-
-        <footer className="pf-footer">
-          <div className="pf-status">
-            <span className="pf-status-dot" />
-            <span>
-              {filtered.length > 0
-                ? `${visible.length.toLocaleString("fr-FR")} sur ${filtered.length.toLocaleString("fr-FR")} patient${filtered.length > 1 ? "s" : ""} affichés`
-                : "0 patient"}
-            </span>
-          </div>
-
-          <div className="pf-pagination">
-            {visibleCount < filtered.length && (
-              <button type="button" className="pf-page-btn pf-page-btn--wide" onClick={loadMore}>
-                Afficher 500 de plus
-              </button>
-            )}
-            <button
-              type="button"
-              className="pf-page-btn pf-page-btn--top"
-              onClick={scrollTop}
-              title="Retour en haut"
-            >
-              ↑
-            </button>
-          </div>
-        </footer>
       </div>
+
+      {/* Footer */}
+      <div className="pf-footer">
+        <div className="pf-footer-inner">
+          <div className="pf-footer-row-fill">
+            <button className="pf-footer-btn" disabled={!hasSelected} onClick={() => setOverlay("edit")}>Administrative</button>
+            <button className="pf-footer-btn" disabled={!hasSelected} onClick={() => setOverlay("visu")}>Visu Dossier</button>
+            <button className="pf-footer-btn" disabled={!hasSelected} onClick={handleOpenConsult}>Consultation</button>
+            <button className="pf-footer-btn" disabled>Ordonnance</button>
+            <button className="pf-footer-btn" disabled>Actes</button>
+            <button className="pf-footer-btn" disabled>Courrier</button>
+            <button className="pf-footer-btn" disabled>Résumé</button>
+          </div>
+          <div className="pf-footer-row-center">
+            <button className="pf-footer-btn" disabled>Examens</button>
+            <button className="pf-footer-btn" disabled>Diag.Tare...</button>
+            <button className="pf-footer-btn" disabled>Fiche Per...</button>
+            <button className="pf-footer-btn" disabled>Mémo</button>
+            <button className="pf-footer-btn" disabled>Lst Recherche</button>
+            <button className="pf-footer-btn" disabled>Rendez-vous</button>
+            <button className="pf-footer-btn" onClick={onBack}>Menu général</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete result modal */}
+      {deleteResult && (
+        <div className="np-modal-overlay">
+          <div className="np-modal">
+            <h2 className={`np-modal-title ${deleteResult.ok ? "np-modal-title--success" : ""}`}>
+              {deleteResult.ok ? "Patient supprimé" : "Erreur de suppression"}
+            </h2>
+            <p className="np-modal-body">
+              {deleteResult.ok
+                ? `La fiche a été supprimée. Fermeture dans ${countdown}…`
+                : `Erreur : ${deleteResult.error}`}
+            </p>
+            <div className="np-modal-actions">
+              <button className="np-modal-btn np-modal-btn--cancel" onClick={() => {
+                if (countdownRef.current) clearInterval(countdownRef.current);
+                setDeleteResult(null);
+                if (deleteResult.ok) reload();
+              }}>
+                {deleteResult.ok ? "Fermer maintenant" : "Fermer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {showDeleteModal && (
+        <div className="np-modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="np-modal" onClick={e => e.stopPropagation()}>
+            <h2 className="np-modal-title">Supprimer le patient</h2>
+            <p className="np-modal-body">
+              Cette action est <strong>irréversible</strong>. La fiche de{" "}
+              <strong>{[selectedPatient?.prenom, selectedPatient?.nom].filter(Boolean).join(" ")}</strong> sera définitivement supprimée.
+            </p>
+            <div>
+              <div className="np-modal-label">Tapez le nom <strong>{selectedPatient?.nom}</strong> pour confirmer :</div>
+              <input
+                className="np-modal-inp"
+                autoFocus
+                value={deleteInput}
+                onChange={e => setDeleteInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && deleteConfirmed) handleDelete(); }}
+                placeholder={selectedPatient?.nom ?? ""}
+              />
+            </div>
+            <div className="np-modal-actions">
+              <button className="np-modal-btn np-modal-btn--cancel" onClick={() => setShowDeleteModal(false)}>Annuler</button>
+              <button
+                className="np-modal-btn np-modal-btn--delete"
+                disabled={!deleteConfirmed || deleting}
+                onClick={handleDelete}
+              >
+                {deleting ? "Suppression…" : "Supprimer définitivement"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

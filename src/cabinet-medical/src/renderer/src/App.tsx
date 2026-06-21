@@ -76,7 +76,6 @@ const menuItems: MenuItem[] = [
 
 function App() {
   const [currentView, setCurrentView] = useState<string | null>(null);
-  const [editCompteur, setEditCompteur] = useState<number | null>(null);
 
   function handleMenuClick(item: MenuItem) {
     if (item.view === "quitter") {
@@ -84,7 +83,6 @@ function App() {
       return;
     }
     if (item.view === "nouveau-patient") {
-      setEditCompteur(null);
       setCurrentView("nouveau-patient");
       return;
     }
@@ -100,10 +98,7 @@ function App() {
   }
 
   if (currentView === "recherche-patient") {
-    return <PatientSearch
-      onBack={() => setCurrentView(null)}
-      onOpenAdmin={compteur => { setEditCompteur(compteur); setCurrentView("nouveau-patient"); }}
-    />;
+    return <PatientSearch onBack={() => setCurrentView(null)} />;
   }
   if (currentView === "fichier-patients") {
     return <PatientsFile onBack={() => setCurrentView(null)} />;
@@ -112,14 +107,7 @@ function App() {
     return <ConsultationList onBack={() => setCurrentView(null)} />;
   }
   if (currentView === "nouveau-patient") {
-    return <NewPatient
-      onBack={() => {
-        const returnTo = editCompteur !== null ? "recherche-patient" : null;
-        setEditCompteur(null);
-        setCurrentView(returnTo);
-      }}
-      editCompteur={editCompteur}
-    />;
+    return <NewPatient onBack={() => setCurrentView(null)} />;
   }
 
   return (

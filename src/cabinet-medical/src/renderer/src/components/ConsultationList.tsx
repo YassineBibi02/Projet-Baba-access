@@ -4,6 +4,7 @@ import { fr } from 'date-fns/locale'
 import 'react-datepicker/dist/react-datepicker.css'
 import './ConsultationList.css'
 import ConsultationPage from './ConsultationPage'
+import { Topbar } from './Topbar'
 
 registerLocale('fr', fr)
 
@@ -140,15 +141,7 @@ export default function ConsultationList({ onBack }: Props) {
   return (
     <div className="cl-shell">
 
-      {/* Topbar */}
-      <div className="cl-topbar">
-        <div className="cl-topbar-inner">
-          <h1 className="cl-title">Liste de Consultation</h1>
-          <div className="cl-topbar-btns">
-            <button className="cl-btn" onClick={onBack}>Menu général</button>
-          </div>
-        </div>
-      </div>
+      <Topbar title="Liste de Consultation" onBack={onBack} />
 
       {/* Workspace */}
       <div className="cl-workspace">

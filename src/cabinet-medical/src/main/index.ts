@@ -67,7 +67,7 @@ app.whenReady().then(() => {
       if (!db) return { rows: [], seekIndex: 0, hasBefore: false, hasAfter: false }
 
       const v    = p.value.trim()
-      const cols = 'compteur, nom, prenom, n_dossier, date_de_naissance, ville, tel_domicile'
+      const cols = 'compteur, nom, prenom, n_dossier, date_de_naissance, ville, tel_domicile, notesstate, date_1ere_consultation'
 
       // Access M/D/YYYY → sort integer YYYYMMDD
       const _r   = "SUBSTR(date_de_naissance,INSTR(date_de_naissance,'/')+1)"
@@ -192,6 +192,35 @@ app.whenReady().then(() => {
   ipcMain.handle('patients:get', (_event, compteur: number) => {
     if (!db) return null
     return getStmt('SELECT * FROM app_patients WHERE compteur = ?').get(compteur) ?? null
+  })
+
+  // Offset-based paginated list for PatientsFile (server-side sort + search)
+  ipcMain.handle('patients:list', (_event, p: {
+    offset: number; limit: number
+    sortField: 'nom' | 'prenom' | 'code' | 'naissance' | 'premiere' | null
+    sortDir: 'asc' | 'desc'; search: string
+  }) => {
+    if (!db) return { rows: [], total: 0 }
+    const cols = 'compteur, nom, prenom, n_dossier, date_de_naissance, notesstate, date_1ere_consultation'
+    const dir = p.sortDir === 'desc' ? 'DESC' : 'ASC'
+    const mkDate = (col: string) => {
+      const r = `SUBSTR(${col},INSTR(${col},'/')+1)`
+      return `(CAST(SUBSTR(${r},INSTR(${r},'/')+1,4)AS INTEGER)*10000+CAST(SUBSTR(${col},1,INSTR(${col},'/')-1)AS INTEGER)*100+CAST(SUBSTR(${r},1,INSTR(${r},'/')-1)AS INTEGER))`
+    }
+    const SNUM = `CAST(CASE WHEN INSTR(n_dossier,'/')>0 THEN SUBSTR(n_dossier,1,INSTR(n_dossier,'/')-1) ELSE n_dossier END AS INTEGER)`
+    const SLEN = `LENGTH(CASE WHEN INSTR(n_dossier,'/')>0 THEN SUBSTR(n_dossier,1,INSTR(n_dossier,'/')-1) ELSE COALESCE(n_dossier,'') END)`
+    const orderBy =
+      p.sortField === 'prenom'    ? `UPPER(TRIM(COALESCE(prenom,''))) ${dir}, UPPER(TRIM(COALESCE(nom,''))) ${dir}` :
+      p.sortField === 'code'      ? `${SNUM} ${dir}, ${SLEN} ${dir}` :
+      p.sortField === 'naissance' ? `${mkDate('date_de_naissance')} ${dir}, CAST(compteur AS INTEGER) ${dir}` :
+      p.sortField === 'premiere'  ? `${mkDate('date_1ere_consultation')} ${dir}, CAST(compteur AS INTEGER) ${dir}` :
+                                    `UPPER(TRIM(COALESCE(nom,''))) ${dir}, UPPER(TRIM(COALESCE(prenom,''))) ${dir}`
+    const s = p.search.trim()
+    const where = s ? `WHERE UPPER(TRIM(COALESCE(nom,''))) LIKE ? OR UPPER(TRIM(COALESCE(prenom,''))) LIKE ? OR UPPER(TRIM(COALESCE(n_dossier,''))) LIKE ?` : ''
+    const params: (string | number)[] = s ? [`%${s.toUpperCase()}%`, `%${s.toUpperCase()}%`, `%${s.toUpperCase()}%`] : []
+    const total = (db.prepare(`SELECT COUNT(*) as cnt FROM app_patients ${where}`).get(...params) as { cnt: number }).cnt
+    const rows  = db.prepare(`SELECT ${cols} FROM app_patients ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).all(...params, p.limit, p.offset)
+    return { rows, total }
   })
 
   ipcMain.handle('patients:consultations', (_event, compteur: number) => {

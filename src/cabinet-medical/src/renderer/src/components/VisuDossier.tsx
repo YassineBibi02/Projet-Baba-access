@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import './VisuDossier.css'
 import ConsultationPage from './ConsultationPage'
+import { Topbar } from './Topbar'
 
 interface PatientInfo {
   compteur: number
@@ -160,15 +161,7 @@ export default function VisuDossier({ patient, onBack, onMenu }: Props) {
   return (
     <div className="vd-shell">
 
-      {/* ── Topbar ── */}
-      <div className="vd-topbar">
-        <div className="vd-topbar-inner">
-          <h2 className="vd-title">Historique Médical</h2>
-          <div className="vd-topbar-btns">
-            <button className="vd-btn" onClick={onBack}>Retour</button>
-          </div>
-        </div>
-      </div>
+      <Topbar title="Historique Médical" onBack={onBack} />
 
       {/* ── Workspace ── */}
       <div className="vd-workspace">

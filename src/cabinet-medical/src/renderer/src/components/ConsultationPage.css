@@ -12,65 +12,11 @@
     linear-gradient(135deg, #14322a 0%, #1d4a3a 48%, #234f3f 100%);
 }
 
-/* ── Topbar ── */
-.cp-topbar {
-  flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.16);
-}
-.cp-topbar-inner {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 calc(24px * var(--ui-scale));
-  height: calc(46px * var(--ui-scale));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.cp-title {
-  margin: 0;
-  font-size: calc(18px * var(--ui-scale));
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: 0.4px;
-}
-.cp-topbar-btns {
-  display: flex;
-  align-items: center;
-  gap: calc(10px * var(--ui-scale));
-}
 .cp-unsaved-hint {
   font-size: calc(11px * var(--ui-scale));
   color: #fbbf24;
   font-style: italic;
 }
-.cp-save-btn {
-  font-family: inherit;
-  font-size: calc(13px * var(--ui-scale));
-  font-weight: 700;
-  padding: calc(6px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  border-radius: 4px;
-  border: none;
-  background: #059669;
-  color: #fff;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-.cp-save-btn:hover:not(:disabled) { background: #047857; }
-.cp-save-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.cp-menu-btn {
-  font-family: inherit;
-  font-size: calc(13px * var(--ui-scale));
-  font-weight: 600;
-  padding: calc(5px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.24);
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.9);
-  cursor: pointer;
-  transition: background 0.1s;
-}
-.cp-menu-btn:hover { background: rgba(255,255,255,0.15); }
-.cp-menu-btn:focus-visible { outline: none; }
 
 /* ── Workspace ── */
 .cp-workspace {

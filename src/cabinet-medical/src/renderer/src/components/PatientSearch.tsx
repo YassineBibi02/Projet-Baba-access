@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } fr
 import './PatientSearch.css'
 import ConsultationPage from './ConsultationPage'
 import VisuDossier from './VisuDossier'
+import NewPatient from './NewPatient'
+import { Topbar } from './Topbar'
 
 interface PatientRow {
   compteur: number
@@ -86,7 +88,7 @@ interface ConsultData {
   themes: ThemeRow[]
 }
 
-interface Props { onBack: () => void; onOpenAdmin?: (compteur: number) => void }
+interface Props { onBack: () => void }
 
 const ROW_H_BASE = 36
 const VISIBLE_ROWS = 13
@@ -440,7 +442,7 @@ function ConsultationList({ consultations, themes, onOpen }: ConsultListProps) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
+export default function PatientSearch({ onBack }: Props) {
   const [nom, setNom]       = useState('')
   const [prenom, setPrenom] = useState('')
   const [code, setCode]     = useState('')
@@ -457,6 +459,7 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
     autoNew: boolean
   } | null>(null)
   const [openVisuDossier, setOpenVisuDossier] = useState(false)
+  const [openAdmin, setOpenAdmin] = useState(false)
 
   const nomRef  = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
@@ -546,6 +549,16 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
 
   const open = openField !== null && result.rows.length > 0
 
+  // ── NewPatient (Administrative) overlay ─────────────────────────────────────
+  if (patient && openAdmin) {
+    return (
+      <NewPatient
+        editCompteur={patient.compteur}
+        onBack={() => setOpenAdmin(false)}
+      />
+    )
+  }
+
   // ── VisuDossier overlay ──────────────────────────────────────────────────────
   if (patient && openVisuDossier) {
     return (
@@ -595,15 +608,9 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
 
   return (
     <div className="ps-shell">
-      <div className="ps-topbar">
-        <div className="ps-topbar-inner">
-          <h1 className="ps-title">Recherche patient</h1>
-          <div className="ps-topbar-btns">
-            <button className="ps-btn" onClick={onBack}>Menu général</button>
-            <button className="ps-btn" onClick={reset}>Nouvelle fiche</button>
-          </div>
-        </div>
-      </div>
+      <Topbar title="Recherche patient" onBack={onBack}>
+        <button className="topbar-btn" onClick={reset}>Nouvelle fiche</button>
+      </Topbar>
 
       <div className="ps-workspace">
 
@@ -817,7 +824,7 @@ export default function PatientSearch({ onBack, onOpenAdmin }: Props) {
             <button
               className="ps-footer-btn ps-footer-btn--active"
               disabled={!patient}
-              onClick={() => patient && onOpenAdmin?.(patient.compteur)}
+              onClick={() => patient && setOpenAdmin(true)}
             >Administrative</button>
             <button
               className="ps-footer-btn"

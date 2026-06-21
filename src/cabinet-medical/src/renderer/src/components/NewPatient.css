@@ -74,11 +74,6 @@
 .np-modal-btn--delete:hover:not(:disabled) { background: #b91c1c; }
 .np-modal-btn--delete:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Topbar button variants ── */
-.np-btn--danger  { background: #fee2e2 !important; color: #991b1b !important; border-color: #fca5a5 !important; }
-.np-btn--danger:hover  { background: #fecaca !important; }
-.np-btn--primary { background: #dcfce7 !important; color: #065f46 !important; border-color: #6ee7b7 !important; }
-.np-btn--primary:hover { background: #d1fae5 !important; }
 
 /* ── Feedback banner ── */
 .np-feedback {
